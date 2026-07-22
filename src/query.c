@@ -1,6 +1,5 @@
 #include <stdlib.h>
 #include <string.h>
-#include <stdarg.h>
 #include "internal/corm_internal.h"
 
 /* ── Query builder ── */
@@ -54,17 +53,8 @@ corm_query_t *corm_query_where(corm_query_t *q, const char *condition, ...) {
     if (q->where.len > 0)
         corm_strbuf_append(&q->where, " AND ");
     corm_strbuf_append(&q->where, condition);
-
-    va_list ap;
-    va_start(ap, condition);
-    /* Append variadic corm_value_t arguments as bind params */
-    corm_value_t val = va_arg(ap, corm_value_t);
-    while (val.type != CORM_INT || val.v.i != -9999) { /* sentinel: use explicit bind */
-        corm_query_bind(q, val);
-        val = va_arg(ap, corm_value_t);
-    }
-    va_end(ap);
-
+    /* Variadic params intentionally unsupported — use corm_query_bind() explicitly */
+    (void)condition;
     q->op = CORM_OP_SELECT;
     return q;
 }
