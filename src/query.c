@@ -117,7 +117,12 @@ corm_query_t *corm_query_bind(corm_query_t *q, corm_value_t val) {
 corm_query_t *corm_query_set(corm_query_t *q, const char *field, corm_value_t val) {
     if (q->set_clause.len > 0)
         corm_strbuf_append(&q->set_clause, ", ");
-    corm_strbuf_appendf(&q->set_clause, "%s = ?", field);
+    const char *qchar = corm_dialect_quote(q->db->backend->type, field);
+    corm_strbuf_append(&q->set_clause, qchar);
+    corm_strbuf_append(&q->set_clause, field);
+    corm_strbuf_append(&q->set_clause, qchar);
+    corm_strbuf_append(&q->set_clause, " = ");
+    corm_strbuf_append(&q->set_clause, corm_dialect_placeholder(q->db->backend->type, q->param_count));
     corm_query_bind(q, val);
     q->op = CORM_OP_UPDATE;
     return q;

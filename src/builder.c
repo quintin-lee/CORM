@@ -31,17 +31,13 @@ corm_err_t corm_build_sql(corm_query_t *q, corm_strbuf_t *sql, corm_backend_type
             if (q->order.len > 0)
                 corm_strbuf_appendf(sql, " ORDER BY %s", corm_strbuf_cstr(&q->order));
             if (q->limit > 0 || q->offset > 0) {
-                const char *fmt = corm_dialect_limit_offset(bt);
                 if (bt == CORM_BACKEND_POSTGRES) {
-                    /* PostgreSQL: LIMIT $n OFFSET $n (index starts after existing params) */
                     int next_idx = q->param_count;
-                    corm_strbuf_appendf(sql, " %s", fmt);
-                } else if (bt == CORM_BACKEND_MYSQL) {
-                    /* MySQL: LIMIT ? OFFSET ? (bound by caller) */
-                    corm_strbuf_append(sql, " ");
-                    corm_strbuf_append(sql, fmt);
+                    corm_strbuf_appendf(sql, " LIMIT $%d", next_idx);
+                    if (q->offset > 0)
+                        corm_strbuf_appendf(sql, " OFFSET $%d", next_idx + 1);
                 } else {
-                    /* SQLite: literal numbers */
+                    /* SQLite/MySQL: literal numbers (neither backend uses prepared LIMIT/OFFSET) */
                     corm_strbuf_appendf(sql, " LIMIT %d", q->limit);
                     if (q->offset > 0)
                         corm_strbuf_appendf(sql, " OFFSET %d", q->offset);
