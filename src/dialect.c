@@ -22,6 +22,7 @@ const char *corm_dialect_quote(corm_backend_type_t backend, const char *name) {
     (void)name;
     switch (backend) {
         case CORM_BACKEND_POSTGRES:
+            return "\"";
         case CORM_BACKEND_MYSQL:
             return "`";
         case CORM_BACKEND_SQLITE:

@@ -127,16 +127,18 @@ static corm_err_t pg_exec(corm_t *db, const char *sql,
             malloc((size_t)param_count * sizeof(char *));
         int *param_lengths = (int *)malloc((size_t)param_count * sizeof(int));
         int *param_formats = (int *)malloc((size_t)param_count * sizeof(int));
+        char **tmp_strs = (char **)calloc((size_t)param_count, sizeof(char *));
 
-        if (!param_values || !param_lengths || !param_formats) {
+        if (!param_values || !param_lengths || !param_formats || !tmp_strs) {
             free((void *)param_values);
             free(param_lengths);
             free(param_formats);
+            for (int i = 0; i < param_count; i++) free(tmp_strs[i]);
+            free(tmp_strs);
             return CORM_ERR_NOMEM;
         }
 
         /* Build param arrays */
-        char *tmp_str = NULL;
         for (int i = 0; i < param_count; i++) {
             param_formats[i] = 0; /* text format */
             if (params[i].is_null) {
@@ -148,18 +150,18 @@ static corm_err_t pg_exec(corm_t *db, const char *sql,
                     case CORM_INT64: {
                         char buf[32];
                         snprintf(buf, sizeof(buf), "%" PRId64, params[i].v.i);
-                        tmp_str = strdup(buf);
-                        param_values[i] = tmp_str;
-                        param_lengths[i] = (int)strlen(tmp_str);
+                        tmp_strs[i] = strdup(buf);
+                        param_values[i] = tmp_strs[i];
+                        param_lengths[i] = (int)strlen(tmp_strs[i]);
                         break;
                     }
                     case CORM_FLOAT:
                     case CORM_DOUBLE: {
                         char buf[64];
                         snprintf(buf, sizeof(buf), "%.15g", params[i].v.f);
-                        tmp_str = strdup(buf);
-                        param_values[i] = tmp_str;
-                        param_lengths[i] = (int)strlen(tmp_str);
+                        tmp_strs[i] = strdup(buf);
+                        param_values[i] = tmp_strs[i];
+                        param_lengths[i] = (int)strlen(tmp_strs[i]);
                         break;
                     }
                     case CORM_STRING:
@@ -186,6 +188,8 @@ static corm_err_t pg_exec(corm_t *db, const char *sql,
         free((void *)param_values);
         free(param_lengths);
         free(param_formats);
+        for (int i = 0; i < param_count; i++) free(tmp_strs[i]);
+        free(tmp_strs);
 
         ExecStatusType status = PQresultStatus(pgres);
         PQclear(pgres);
@@ -218,15 +222,17 @@ static corm_err_t pg_query(corm_t *db, const char *sql,
             malloc((size_t)param_count * sizeof(char *));
         int *param_lengths = (int *)malloc((size_t)param_count * sizeof(int));
         int *param_formats = (int *)malloc((size_t)param_count * sizeof(int));
+        char **tmp_strs = (char **)calloc((size_t)param_count, sizeof(char *));
 
-        if (!param_values || !param_lengths || !param_formats) {
+        if (!param_values || !param_lengths || !param_formats || !tmp_strs) {
             free((void *)param_values);
             free(param_lengths);
             free(param_formats);
+            for (int i = 0; i < param_count; i++) free(tmp_strs[i]);
+            free(tmp_strs);
             return CORM_ERR_NOMEM;
         }
 
-        char *tmp_str = NULL;
         for (int i = 0; i < param_count; i++) {
             param_formats[i] = 0;
             if (params[i].is_null) {
@@ -238,18 +244,18 @@ static corm_err_t pg_query(corm_t *db, const char *sql,
                     case CORM_INT64: {
                         char buf[32];
                         snprintf(buf, sizeof(buf), "%" PRId64, params[i].v.i);
-                        tmp_str = strdup(buf);
-                        param_values[i] = tmp_str;
-                        param_lengths[i] = (int)strlen(tmp_str);
+                        tmp_strs[i] = strdup(buf);
+                        param_values[i] = tmp_strs[i];
+                        param_lengths[i] = (int)strlen(tmp_strs[i]);
                         break;
                     }
                     case CORM_FLOAT:
                     case CORM_DOUBLE: {
                         char buf[64];
                         snprintf(buf, sizeof(buf), "%.15g", params[i].v.f);
-                        tmp_str = strdup(buf);
-                        param_values[i] = tmp_str;
-                        param_lengths[i] = (int)strlen(tmp_str);
+                        tmp_strs[i] = strdup(buf);
+                        param_values[i] = tmp_strs[i];
+                        param_lengths[i] = (int)strlen(tmp_strs[i]);
                         break;
                     }
                     case CORM_STRING:
@@ -276,6 +282,8 @@ static corm_err_t pg_query(corm_t *db, const char *sql,
         free((void *)param_values);
         free(param_lengths);
         free(param_formats);
+        for (int i = 0; i < param_count; i++) free(tmp_strs[i]);
+        free(tmp_strs);
     } else {
         pgres = PQexec(handle, sql);
     }
