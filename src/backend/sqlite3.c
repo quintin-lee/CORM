@@ -146,41 +146,46 @@ static corm_err_t sqlite_query(corm_t *db, const char *sql,
         }
     }
 
-    /* Count rows first */
-    int row_count = 0;
-    while (sqlite3_step(stmt) == SQLITE_ROW) {
-        row_count++;
-    }
-    sqlite3_reset(stmt);
-
     int col_count = sqlite3_column_count(stmt);
-    corm_result_t *res = corm_result_new(col_count, row_count);
-    if (!res) {
+
+    /* Single-pass: collect rows dynamically */
+    int row_cap = 16;
+    int row_count = 0;
+    corm_value_t *all_rows = (corm_value_t *)calloc((size_t)row_cap * (size_t)col_count, sizeof(corm_value_t));
+    corm_field_type_t *col_types = (corm_field_type_t *)calloc((size_t)col_count, sizeof(corm_field_type_t));
+    if (!all_rows || !col_types) {
+        free(all_rows);
+        free(col_types);
         sqlite3_finalize(stmt);
         return CORM_ERR_NOMEM;
     }
 
-    for (int i = 0; i < col_count; i++) {
-        res->column_names[i] = strdup(sqlite3_column_name(stmt, i));
-        res->column_types[i] = CORM_TEXT;
-    }
-
-    row_count = 0;
-    while (sqlite3_step(stmt) == SQLITE_ROW) {
+    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+        if (row_count >= row_cap) {
+            row_cap *= 2;
+            corm_value_t *tmp = realloc(all_rows, (size_t)row_cap * (size_t)col_count * sizeof(corm_value_t));
+            if (!tmp) {
+                free(all_rows);
+                free(col_types);
+                sqlite3_finalize(stmt);
+                return CORM_ERR_NOMEM;
+            }
+            all_rows = tmp;
+        }
         for (int i = 0; i < col_count; i++) {
-            corm_value_t *v = &res->rows[row_count][i];
+            corm_value_t *v = &all_rows[(size_t)row_count * (size_t)col_count + i];
             int stype = sqlite3_column_type(stmt, i);
             v->is_null = (stype == SQLITE_NULL);
             if (v->is_null) continue;
             if (row_count == 0) {
                 switch (stype) {
-                    case SQLITE_INTEGER: res->column_types[i] = CORM_INT64; break;
-                    case SQLITE_FLOAT:   res->column_types[i] = CORM_DOUBLE; break;
-                    case SQLITE_BLOB:    res->column_types[i] = CORM_BLOB; break;
-                    default:             res->column_types[i] = CORM_TEXT; break;
+                    case SQLITE_INTEGER: col_types[i] = CORM_INT64; break;
+                    case SQLITE_FLOAT:   col_types[i] = CORM_DOUBLE; break;
+                    case SQLITE_BLOB:    col_types[i] = CORM_BLOB; break;
+                    default:             col_types[i] = CORM_TEXT; break;
                 }
             }
-            switch (res->column_types[i]) {
+            switch (col_types[i]) {
                 case CORM_INT64:
                     v->v.i = sqlite3_column_int64(stmt, i);
                     v->type = CORM_INT64;
@@ -211,6 +216,36 @@ static corm_err_t sqlite_query(corm_t *db, const char *sql,
         row_count++;
     }
 
+    if (rc != SQLITE_DONE) {
+        free(all_rows);
+        free(col_types);
+        sqlite3_finalize(stmt);
+        snprintf(db->err_msg, sizeof(db->err_msg), "%s", sqlite3_errmsg(handle));
+        return CORM_ERR_BACKEND;
+    }
+
+    /* Build result */
+    corm_result_t *res = corm_result_new(col_count, row_count);
+    if (!res) {
+        free(all_rows);
+        free(col_types);
+        sqlite3_finalize(stmt);
+        return CORM_ERR_NOMEM;
+    }
+
+    for (int i = 0; i < col_count; i++) {
+        res->column_names[i] = strdup(sqlite3_column_name(stmt, i));
+        res->column_types[i] = col_types[i];
+    }
+    /* Copy flat array → 2D rows[i][j] */
+    for (int r = 0; r < row_count; r++) {
+        for (int c = 0; c < col_count; c++) {
+            res->rows[r][c] = all_rows[(size_t)r * (size_t)col_count + c];
+        }
+    }
+
+    free(all_rows);
+    free(col_types);
     sqlite3_finalize(stmt);
     *out = res;
     return CORM_OK;
