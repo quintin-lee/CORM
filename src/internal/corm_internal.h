@@ -3,7 +3,6 @@
 
 #include "corm_pub.h"
 #include "hash.h"
-#include "pool.h"
 
 typedef struct{corm_hash_t models_by_table;corm_hash_t models_by_name;}corm_registry_t;
 corm_err_t corm_model_registry_init(corm_registry_t*reg);

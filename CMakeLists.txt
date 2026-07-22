@@ -15,9 +15,6 @@ option(CORM_WITH_POSTGRES "Build with PostgreSQL support" ON)
 option(CORM_BUILD_TESTS   "Build tests"                 ON)
 option(CORM_BUILD_EXAMPLES "Build examples"             ON)
 
-# ── Public includes ──
-set(CORM_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include)
-include_directories(${CORM_INCLUDE_DIR})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 # ── Find dependencies ──
@@ -35,9 +32,17 @@ if(CORM_WITH_SQLITE3)
     endif()
     if(SQLITE3_FOUND)
         add_definitions(-DCORM_HAVE_SQLITE3)
-        include_directories(${SQLITE3_INCLUDE_DIR})
-        set(CORM_EXTRA_LIBS ${CORM_EXTRA_LIBS} ${SQLITE3_LIBRARY})
-        message(STATUS "SQLite3: FOUND")
+        if(SQLITE3_INCLUDE_DIRS)
+            include_directories(${SQLITE3_INCLUDE_DIRS})
+        else()
+            include_directories(${SQLITE3_INCLUDE_DIR})
+        endif()
+        if(SQLITE3_LIBRARIES)
+            list(APPEND CORM_EXTRA_LIBS ${SQLITE3_LIBRARIES})
+        else()
+            list(APPEND CORM_EXTRA_LIBS ${SQLITE3_LIBRARY})
+        endif()
+        message(STATUS "SQLite3: FOUND (${CORM_EXTRA_LIBS})")
     else()
         message(STATUS "SQLite3: NOT FOUND (using stub)")
     endif()
@@ -78,7 +83,6 @@ set(CORM_SOURCES
     src/model.c
     src/query.c
     src/result.c
-    src/stmt.c
     src/migration.c
     src/builder.c
     src/dialect.c
