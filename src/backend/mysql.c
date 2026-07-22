@@ -93,7 +93,7 @@ static corm_err_t mysql_open(corm_t *db, const char *dsn) {
     return CORM_OK;
 }
 
-static corm_err_t mysql_close(corm_t *db) {
+static corm_err_t corm_mysql_close(corm_t *db) {
     MYSQL *handle = (MYSQL *)db->conn;
     if (handle) {
         mysql_close(handle);
@@ -102,7 +102,7 @@ static corm_err_t mysql_close(corm_t *db) {
     return CORM_OK;
 }
 
-static corm_err_t mysql_ping(corm_t *db) {
+static corm_err_t corm_mysql_ping(corm_t *db) {
     MYSQL *handle = (MYSQL *)db->conn;
     if (!handle) return CORM_ERR_BACKEND;
     return mysql_ping(handle) == 0 ? CORM_OK : CORM_ERR_BACKEND;
@@ -121,7 +121,7 @@ static corm_err_t mysql_exec(corm_t *db, const char *sql,
     return CORM_OK;
 }
 
-static corm_err_t mysql_query(corm_t *db, const char *sql,
+static corm_err_t corm_mysql_query(corm_t *db, const char *sql,
                               corm_value_t *params, int param_count,
                               corm_result_t **out) {
     MYSQL *handle = (MYSQL *)db->conn;
@@ -222,12 +222,25 @@ static corm_err_t mysql_begin(corm_t *db) {
     return mysql_exec(db, "START TRANSACTION", NULL, 0);
 }
 
-static corm_err_t mysql_commit(corm_t *db) {
-    return mysql_exec(db, "COMMIT", NULL, 0);
+static corm_err_t corm_mysql_exec(corm_t *db, const char *sql,
+                              corm_value_t *params, int param_count) {
+    MYSQL *handle = (MYSQL *)db->conn;
+    (void)params;
+    (void)param_count;
+
+    if (mysql_query(handle, sql) != 0) {
+        snprintf(db->err_msg, sizeof(db->err_msg), "%s", mysql_error(handle));
+        return CORM_ERR_BACKEND;
+    }
+    return CORM_OK;
 }
 
-static corm_err_t mysql_rollback(corm_t *db) {
-    return mysql_exec(db, "ROLLBACK", NULL, 0);
+static corm_err_t corm_mysql_commit(corm_t *db) {
+    return corm_mysql_exec(db, "COMMIT", NULL, 0);
+}
+
+static corm_err_t corm_mysql_rollback(corm_t *db) {
+    return corm_mysql_exec(db, "ROLLBACK", NULL, 0);
 }
 
 static size_t mysql_escape(corm_t *db, char *dst, const char *src, size_t len) {
@@ -250,13 +263,13 @@ static corm_backend_t mysql_backend = {
     .name = "mysql",
     .type = CORM_BACKEND_MYSQL,
     .open = mysql_open,
-    .close = mysql_close,
-    .ping = mysql_ping,
+    .close = corm_mysql_close,
+    .ping = corm_mysql_ping,
     .exec = mysql_exec,
-    .query = mysql_query,
+    .query = corm_mysql_query,
     .begin = mysql_begin,
-    .commit = mysql_commit,
-    .rollback = mysql_rollback,
+    .commit = corm_mysql_commit,
+    .rollback = corm_mysql_rollback,
     .escape_string = mysql_escape,
     .last_insert_id = mysql_last_id,
     .rows_affected = mysql_affected,
