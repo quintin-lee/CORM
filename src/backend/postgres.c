@@ -183,7 +183,7 @@ static corm_err_t pg_exec(corm_t *db, const char *sql,
         }
 
         PGresult *pgres = PQexecParams(handle, sql, param_count, NULL,
-                                       param_values, param_lengths, param_formats, 0);
+                                        param_values, param_lengths, param_formats, 0);
 
         free((void *)param_values);
         free(param_lengths);
@@ -192,20 +192,23 @@ static corm_err_t pg_exec(corm_t *db, const char *sql,
         free(tmp_strs);
 
         ExecStatusType status = PQresultStatus(pgres);
-        PQclear(pgres);
-
         if (status != PGRES_COMMAND_OK && status != PGRES_TUPLES_OK) {
             snprintf(db->err_msg, sizeof(db->err_msg), "%s", PQerrorMessage(handle));
+            PQclear(pgres);
             return CORM_ERR_BACKEND;
         }
+        db->rows_affected_val = PQcmdTuples(pgres) ? atoi(PQcmdTuples(pgres)) : 0;
+        PQclear(pgres);
     } else {
         PGresult *pgres = PQexec(handle, sql);
         ExecStatusType status = PQresultStatus(pgres);
-        PQclear(pgres);
         if (status != PGRES_COMMAND_OK && status != PGRES_TUPLES_OK) {
             snprintf(db->err_msg, sizeof(db->err_msg), "%s", PQerrorMessage(handle));
+            PQclear(pgres);
             return CORM_ERR_BACKEND;
         }
+        db->rows_affected_val = PQcmdTuples(pgres) ? atoi(PQcmdTuples(pgres)) : 0;
+        PQclear(pgres);
     }
 
     return CORM_OK;
@@ -403,8 +406,7 @@ static int64_t pg_last_id(corm_t *db) {
 static int pg_affected(corm_t *db) {
     PGconn *handle = (PGconn *)db->conn;
     if (!handle) return 0;
-    /* Note: requires tracking last PGresult; simplified for now */
-    return 0;
+    return db->rows_affected_val;
 }
 
 static corm_backend_t postgres_backend = {
