@@ -233,7 +233,9 @@ static size_t sqlite_escape(corm_t *db, char *dst, const char *src, size_t len) 
     /* SQLite: double single quotes */
     size_t j = 0;
     for (size_t i = 0; i < len && src[i]; i++) {
-        if (src[i] == '\'') { if (dst) dst[j++] = '\''; }
+        if (src[i] == '\'') {
+            if (dst) dst[j++] = '\'';
+        }
         if (dst) dst[j++] = src[i];
     }
     if (dst) dst[j] = '\0';
