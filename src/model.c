@@ -94,9 +94,12 @@ void corm_field_set_value(void *record, corm_field_t *field, corm_value_t *val) 
                 ((char *)ptr)[field->size - 1] = '\0';
             }
             break;
-        case CORM_TEXT:
+        case CORM_TEXT: {
+            char *old = *(char **)ptr;
             *(char **)ptr = val->v.s ? strdup(val->v.s) : NULL;
+            free(old);
             break;
+        }
         case CORM_BOOL:
             *(bool *)ptr = val->v.b;
             break;
