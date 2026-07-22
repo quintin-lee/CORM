@@ -143,7 +143,8 @@ corm_query_t *corm_query_set_raw(corm_query_t *q, const char *clause) {
 /* ── Execution ── */
 
 static corm_err_t query_exec(corm_query_t *q, corm_strbuf_t *sql) {
-    corm_err_t err = corm_build_sql(q, sql);
+    corm_backend_type_t bt = q->db ? q->db->backend->type : CORM_BACKEND_SQLITE;
+    corm_err_t err = corm_build_sql(q, sql, bt);
     if (err) return err;
     return CORM_OK;
 }

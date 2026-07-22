@@ -2,7 +2,15 @@
 
 /* ── SQL builder: builds SQL strings from query state ── */
 
-corm_err_t corm_build_sql(corm_query_t *q, corm_strbuf_t *sql) {
+/* Append a dialect-quoted identifier */
+static void qident(corm_strbuf_t *sql, corm_backend_type_t bt, const char *name) {
+    const char *q = corm_dialect_quote(bt, name);
+    corm_strbuf_append(sql, q);
+    corm_strbuf_append(sql, name);
+    corm_strbuf_append(sql, q);
+}
+
+corm_err_t corm_build_sql(corm_query_t *q, corm_strbuf_t *sql, corm_backend_type_t bt) {
     switch (q->op) {
         case CORM_OP_SELECT: {
             corm_strbuf_append(sql, "SELECT ");
@@ -10,7 +18,8 @@ corm_err_t corm_build_sql(corm_query_t *q, corm_strbuf_t *sql) {
                 corm_strbuf_append(sql, corm_strbuf_cstr(&q->select_cols));
             else
                 corm_strbuf_append(sql, "*");
-            corm_strbuf_appendf(sql, " FROM %s", q->model->table_name);
+            corm_strbuf_append(sql, " FROM ");
+            qident(sql, bt, q->model->table_name);
             if (q->joins.len > 0)
                 corm_strbuf_appendf(sql, " %s", corm_strbuf_cstr(&q->joins));
             if (q->where.len > 0)
@@ -28,13 +37,15 @@ corm_err_t corm_build_sql(corm_query_t *q, corm_strbuf_t *sql) {
             return CORM_OK;
         }
         case CORM_OP_INSERT: {
-            corm_strbuf_appendf(sql, "INSERT INTO %s (", q->model->table_name);
+            corm_strbuf_append(sql, "INSERT INTO ");
+            qident(sql, bt, q->model->table_name);
+            corm_strbuf_append(sql, " (");
             int count = 0;
             for (int i = 0; i < q->model->field_count; i++) {
                 corm_field_t *f = &q->model->fields[i];
                 if (f->flags & CORM_FLAG_AUTOINC) continue;
                 if (count > 0) corm_strbuf_append(sql, ", ");
-                corm_strbuf_append(sql, f->name);
+                qident(sql, bt, f->name);
                 count++;
             }
             corm_strbuf_append(sql, ") VALUES (");
@@ -42,24 +53,40 @@ corm_err_t corm_build_sql(corm_query_t *q, corm_strbuf_t *sql) {
                 corm_field_t *f = &q->model->fields[i];
                 if (f->flags & CORM_FLAG_AUTOINC) continue;
                 if (j > 0) corm_strbuf_append(sql, ", ");
-                corm_strbuf_append(sql, "?");
+                corm_strbuf_append(sql, corm_dialect_placeholder(bt, j));
                 j++;
             }
             corm_strbuf_append(sql, ")");
             return CORM_OK;
         }
         case CORM_OP_UPDATE: {
-            corm_strbuf_appendf(sql, "UPDATE %s SET ", q->model->table_name);
-            if (q->set_clause.len > 0)
-                corm_strbuf_append(sql, corm_strbuf_cstr(&q->set_clause));
-            else {
+            corm_strbuf_append(sql, "UPDATE ");
+            qident(sql, bt, q->model->table_name);
+            corm_strbuf_append(sql, " SET ");
+            if (q->set_clause.len > 0) {
+                const char *src = corm_strbuf_cstr(&q->set_clause);
+                int pi = 0;
+                while (*src) {
+                    const char *qm = strchr(src, '?');
+                    if (qm) {
+                        corm_strbuf_appendn(sql, src, (size_t)(qm - src));
+                        corm_strbuf_append(sql, corm_dialect_placeholder(bt, pi++));
+                        src = qm + 1;
+                    } else {
+                        corm_strbuf_append(sql, src);
+                        break;
+                    }
+                }
+            } else {
                 /* SET all non-PK fields */
                 int count = 0;
                 for (int i = 0; i < q->model->field_count; i++) {
                     corm_field_t *f = &q->model->fields[i];
                     if (f->flags & CORM_FLAG_PRIMARY) continue;
                     if (count > 0) corm_strbuf_append(sql, ", ");
-                    corm_strbuf_appendf(sql, "%s = ?", f->name);
+                    qident(sql, bt, f->name);
+                    corm_strbuf_append(sql, " = ");
+                    corm_strbuf_append(sql, corm_dialect_placeholder(bt, count));
                     count++;
                 }
             }
@@ -68,7 +95,8 @@ corm_err_t corm_build_sql(corm_query_t *q, corm_strbuf_t *sql) {
             return CORM_OK;
         }
         case CORM_OP_DELETE: {
-            corm_strbuf_appendf(sql, "DELETE FROM %s", q->model->table_name);
+            corm_strbuf_append(sql, "DELETE FROM ");
+            qident(sql, bt, q->model->table_name);
             if (q->where.len > 0)
                 corm_strbuf_appendf(sql, " WHERE %s", corm_strbuf_cstr(&q->where));
             return CORM_OK;

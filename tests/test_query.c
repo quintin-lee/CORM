@@ -33,8 +33,6 @@ static corm_model_t test_user_model = {
 };
 
 /* We test the query builder's SQL construction */
-#include "../src/corm_pub.h"
-#include "internal/strbuf.h"
 
 static void test_query_new_free(void) {
     TEST("corm_query_new allocates query");
@@ -59,9 +57,9 @@ static void test_build_select(void) {
 
     corm_strbuf_t sql;
     corm_strbuf_init(&sql);
-    corm_build_sql(&mock, &sql);
+    corm_build_sql(&mock, &sql, CORM_BACKEND_SQLITE);
     const char *result = corm_strbuf_cstr(&sql);
-    assert(strcmp(result, "SELECT * FROM test_users") == 0);
+    assert(strcmp(result, "SELECT * FROM \"test_users\"") == 0);
     corm_strbuf_free(&sql);
     corm_strbuf_free(&mock.where);
     corm_strbuf_free(&mock.order);
@@ -92,7 +90,7 @@ static void test_build_select_with_where(void) {
 
     corm_strbuf_t sql;
     corm_strbuf_init(&sql);
-    corm_build_sql(&mock, &sql);
+    corm_build_sql(&mock, &sql, CORM_BACKEND_SQLITE);
     const char *result = corm_strbuf_cstr(&sql);
     assert(strstr(result, "WHERE age > ?") != NULL);
     assert(strstr(result, "ORDER BY name ASC") != NULL);
@@ -123,12 +121,12 @@ static void test_build_insert(void) {
 
     corm_strbuf_t sql;
     corm_strbuf_init(&sql);
-    corm_build_sql(&mock, &sql);
+    corm_build_sql(&mock, &sql, CORM_BACKEND_SQLITE);
     const char *result = corm_strbuf_cstr(&sql);
     /* Should not include auto-increment id field */
-    assert(strstr(result, "INSERT INTO test_users") != NULL);
-    assert(strstr(result, "name") != NULL);
-    assert(strstr(result, "age") != NULL);
+    assert(strstr(result, "\"test_users\"") != NULL);
+    assert(strstr(result, "\"name\"") != NULL);
+    assert(strstr(result, "\"age\"") != NULL);
     assert(strchr(result, '?') != NULL);
     corm_strbuf_free(&sql);
     corm_strbuf_free(&mock.where);
@@ -159,9 +157,9 @@ static void test_build_update(void) {
 
     corm_strbuf_t sql;
     corm_strbuf_init(&sql);
-    corm_build_sql(&mock, &sql);
+    corm_build_sql(&mock, &sql, CORM_BACKEND_SQLITE);
     const char *result = corm_strbuf_cstr(&sql);
-    assert(strstr(result, "UPDATE test_users SET") != NULL);
+    assert(strstr(result, "\"test_users\"") != NULL);
     assert(strstr(result, "name = ?, age = ?") != NULL);
     assert(strstr(result, "WHERE id = ?") != NULL);
     corm_strbuf_free(&sql);
@@ -192,9 +190,76 @@ static void test_build_delete(void) {
 
     corm_strbuf_t sql;
     corm_strbuf_init(&sql);
-    corm_build_sql(&mock, &sql);
+    corm_build_sql(&mock, &sql, CORM_BACKEND_SQLITE);
     const char *result = corm_strbuf_cstr(&sql);
-    assert(strstr(result, "DELETE FROM test_users") != NULL);
+    assert(strstr(result, "\"test_users\"") != NULL);
+    assert(strstr(result, "WHERE id = ?") != NULL);
+    corm_strbuf_free(&sql);
+    corm_strbuf_free(&mock.where);
+    corm_strbuf_free(&mock.order);
+    corm_strbuf_free(&mock.group);
+    corm_strbuf_free(&mock.having);
+    corm_strbuf_free(&mock.joins);
+    corm_strbuf_free(&mock.select_cols);
+    corm_strbuf_free(&mock.set_clause);
+    PASS();
+}
+
+static void test_build_insert_pg(void) {
+    corm_query_t mock;
+    memset(&mock, 0, sizeof(mock));
+    mock.model = &test_user_model;
+    mock.op = CORM_OP_INSERT;
+    corm_strbuf_init(&mock.where);
+    corm_strbuf_init(&mock.order);
+    corm_strbuf_init(&mock.group);
+    corm_strbuf_init(&mock.having);
+    corm_strbuf_init(&mock.joins);
+    corm_strbuf_init(&mock.select_cols);
+    corm_strbuf_init(&mock.set_clause);
+
+    corm_strbuf_t sql;
+    corm_strbuf_init(&sql);
+    corm_build_sql(&mock, &sql, CORM_BACKEND_POSTGRES);
+    const char *result = corm_strbuf_cstr(&sql);
+    assert(strstr(result, "\"test_users\"") != NULL);
+    assert(strstr(result, "$1") != NULL);
+    assert(strstr(result, "$2") != NULL);
+    assert(strchr(result, '?') == NULL);
+    corm_strbuf_free(&sql);
+    corm_strbuf_free(&mock.where);
+    corm_strbuf_free(&mock.order);
+    corm_strbuf_free(&mock.group);
+    corm_strbuf_free(&mock.having);
+    corm_strbuf_free(&mock.joins);
+    corm_strbuf_free(&mock.select_cols);
+    corm_strbuf_free(&mock.set_clause);
+    PASS();
+}
+
+static void test_build_update_pg(void) {
+    corm_query_t mock;
+    memset(&mock, 0, sizeof(mock));
+    mock.model = &test_user_model;
+    mock.op = CORM_OP_UPDATE;
+    corm_strbuf_init(&mock.where);
+    corm_strbuf_init(&mock.order);
+    corm_strbuf_init(&mock.group);
+    corm_strbuf_init(&mock.having);
+    corm_strbuf_init(&mock.joins);
+    corm_strbuf_init(&mock.select_cols);
+    corm_strbuf_init(&mock.set_clause);
+
+    corm_strbuf_append(&mock.set_clause, "name = ?, age = ?");
+    corm_strbuf_append(&mock.where, "id = ?");
+
+    corm_strbuf_t sql;
+    corm_strbuf_init(&sql);
+    corm_build_sql(&mock, &sql, CORM_BACKEND_POSTGRES);
+    const char *result = corm_strbuf_cstr(&sql);
+    assert(strstr(result, "\"test_users\"") != NULL);
+    assert(strstr(result, "name = $1") != NULL);
+    assert(strstr(result, "age = $2") != NULL);
     assert(strstr(result, "WHERE id = ?") != NULL);
     corm_strbuf_free(&sql);
     corm_strbuf_free(&mock.where);
@@ -226,7 +291,9 @@ int main(void) {
     test_build_select();
     test_build_select_with_where();
     test_build_insert();
+    test_build_insert_pg();
     test_build_update();
+    test_build_update_pg();
     test_build_delete();
     test_dialect();
 

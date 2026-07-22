@@ -9,9 +9,11 @@ static corm_err_t create_table(corm_t *db, corm_backend_type_t backend,
     corm_strbuf_t sql;
     corm_strbuf_init(&sql);
 
-    corm_strbuf_appendf(&sql, "CREATE TABLE %s %s (",
-                        corm_dialect_if_not_exists(backend),
-                        model->table_name);
+    corm_strbuf_appendf(&sql, "CREATE TABLE %s ", corm_dialect_if_not_exists(backend));
+    corm_strbuf_append(&sql, corm_dialect_quote(backend, model->table_name));
+    corm_strbuf_append(&sql, model->table_name);
+    corm_strbuf_append(&sql, corm_dialect_quote(backend, model->table_name));
+    corm_strbuf_append(&sql, " (");
 
     for (int i = 0; i < model->field_count; i++) {
         corm_field_t *f = &model->fields[i];
