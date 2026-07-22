@@ -27,37 +27,22 @@ static corm_err_t create_table(corm_t *db, corm_backend_type_t backend,
 
         /* Column type */
         if (f->flags & CORM_FLAG_AUTOINC) {
-            /* `id` INTEGER PRIMARY KEY AUTOINCREMENT */
             corm_strbuf_appendf(&sql, " %s", corm_dialect_autoinc(backend));
-            /* For SQLite, that's the whole definition */
-            if (backend == CORM_BACKEND_SQLITE || backend == CORM_BACKEND_POSTGRES) {
-                if (backend == CORM_BACKEND_POSTGRES) {
-                    /* PostgreSQL SERIAL PRIMARY KEY handles everything */
-                }
-                continue; /* autoinc already defines the column fully */
-            } else if (backend == CORM_BACKEND_MYSQL) {
-                corm_strbuf_appendf(&sql, " %s",
-                    corm_dialect_type_name(backend, f->type, f->size));
-                corm_strbuf_append(&sql, " AUTO_INCREMENT");
-                if (f->flags & CORM_FLAG_PRIMARY)
-                    corm_strbuf_append(&sql, " PRIMARY KEY");
-            }
+            continue; /* autoinc dialect already defines the full column */
         } else {
             corm_strbuf_appendf(&sql, " %s",
                 corm_dialect_type_name(backend, f->type, f->size));
         }
 
         /* Constraints */
-        if (!(f->flags & CORM_FLAG_AUTOINC)) {
-            if (f->flags & CORM_FLAG_NOT_NULL)
-                corm_strbuf_append(&sql, " NOT NULL");
-            if (f->flags & CORM_FLAG_UNIQUE)
-                corm_strbuf_append(&sql, " UNIQUE");
-            if (f->default_value && f->default_value[0])
-                corm_strbuf_appendf(&sql, " DEFAULT %s", f->default_value);
-        }
+        if (f->flags & CORM_FLAG_NOT_NULL)
+            corm_strbuf_append(&sql, " NOT NULL");
+        if (f->flags & CORM_FLAG_UNIQUE)
+            corm_strbuf_append(&sql, " UNIQUE");
+        if (f->default_value && f->default_value[0])
+            corm_strbuf_appendf(&sql, " DEFAULT %s", f->default_value);
 
-        /* Primary key constraint for non-SQLite autoinc */
+        /* Primary key constraint for non-autoinc fields */
         if ((f->flags & CORM_FLAG_PRIMARY) && !(f->flags & CORM_FLAG_AUTOINC)) {
             corm_strbuf_append(&sql, " PRIMARY KEY");
         }
