@@ -96,13 +96,14 @@ const char *corm_dialect_type_name(corm_backend_type_t backend, corm_field_type_
 
 const char *corm_dialect_limit_offset(corm_backend_type_t backend) {
     switch (backend) {
-        case CORM_BACKEND_MYSQL:
-        case CORM_BACKEND_POSTGRES:
-            return "LIMIT ? OFFSET ?";
         case CORM_BACKEND_SQLITE:
+            return "LIMIT %d OFFSET %d";
+        case CORM_BACKEND_MYSQL:
             return "LIMIT ? OFFSET ?";
+        case CORM_BACKEND_POSTGRES:
+            return "LIMIT $%d OFFSET $%d";
     }
-    return "LIMIT ? OFFSET ?";
+    return "LIMIT %d OFFSET %d";
 }
 
 const char *corm_dialect_if_not_exists(corm_backend_type_t backend) {

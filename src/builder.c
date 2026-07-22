@@ -30,10 +30,23 @@ corm_err_t corm_build_sql(corm_query_t *q, corm_strbuf_t *sql, corm_backend_type
                 corm_strbuf_appendf(sql, " HAVING %s", corm_strbuf_cstr(&q->having));
             if (q->order.len > 0)
                 corm_strbuf_appendf(sql, " ORDER BY %s", corm_strbuf_cstr(&q->order));
-            if (q->limit > 0)
-                corm_strbuf_appendf(sql, " LIMIT %d", q->limit);
-            if (q->offset > 0)
-                corm_strbuf_appendf(sql, " OFFSET %d", q->offset);
+            if (q->limit > 0 || q->offset > 0) {
+                const char *fmt = corm_dialect_limit_offset(bt);
+                if (bt == CORM_BACKEND_POSTGRES) {
+                    /* PostgreSQL: LIMIT $n OFFSET $n (index starts after existing params) */
+                    int next_idx = q->param_count;
+                    corm_strbuf_appendf(sql, " %s", fmt);
+                } else if (bt == CORM_BACKEND_MYSQL) {
+                    /* MySQL: LIMIT ? OFFSET ? (bound by caller) */
+                    corm_strbuf_append(sql, " ");
+                    corm_strbuf_append(sql, fmt);
+                } else {
+                    /* SQLite: literal numbers */
+                    corm_strbuf_appendf(sql, " LIMIT %d", q->limit);
+                    if (q->offset > 0)
+                        corm_strbuf_appendf(sql, " OFFSET %d", q->offset);
+                }
+            }
             return CORM_OK;
         }
         case CORM_OP_INSERT: {
