@@ -23,8 +23,11 @@ struct corm_query {
   corm_value_t *params;
   int param_count, param_cap;
   int limit, offset;
+  bool unscoped;
 };
 typedef struct corm_query corm_query_t;
+
+extern corm_query_t *corm_query_unscoped(corm_query_t *q);
 
 extern corm_query_t *corm_query_new(struct corm *db, corm_model_t *model);
 extern void corm_query_free(corm_query_t *q);

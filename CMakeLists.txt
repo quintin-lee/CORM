@@ -164,6 +164,10 @@ if(CORM_BUILD_TESTS)
         add_executable(test_stmt_cache tests/test_stmt_cache.c src/internal/stmt_cache.c)
         target_link_libraries(test_stmt_cache corm ${CORM_EXTRA_LIBS})
         add_test(NAME test_stmt_cache COMMAND test_stmt_cache)
+
+        add_executable(test_soft_delete tests/test_soft_delete.c)
+        target_link_libraries(test_soft_delete corm ${CORM_EXTRA_LIBS})
+        add_test(NAME test_soft_delete COMMAND test_soft_delete)
     endif()
 endif()
 

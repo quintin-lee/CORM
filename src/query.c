@@ -227,6 +227,11 @@ corm_query_t *corm_query_set_raw(corm_query_t *q, const char *clause) {
   return q;
 }
 
+corm_query_t *corm_query_unscoped(corm_query_t *q) {
+  if (q) q->unscoped = true;
+  return q;
+}
+
 corm_query_t *corm_query_preload(corm_query_t *q, const char *relation_name) {
   if (!q || !relation_name)
     return q;
@@ -245,6 +250,15 @@ static corm_err_t query_exec(corm_query_t *q, corm_strbuf_t *sql) {
 }
 
 corm_err_t corm_find(corm_query_t *q, corm_result_t **out) {
+  if (q && q->model && !q->unscoped) {
+    for (int i = 0; i < q->model->field_count; i++) {
+      if (q->model->fields[i].flags & CORM_FLAG_SOFT_DELETE) {
+        corm_query_where_null(q, q->model->fields[i].name);
+        break;
+      }
+    }
+  }
+
   corm_strbuf_t sql;
   corm_strbuf_init(&sql);
   q->op = CORM_OP_SELECT;
@@ -365,6 +379,16 @@ corm_err_t corm_update(corm_query_t *q, int *affected) {
 }
 
 corm_err_t corm_delete(corm_query_t *q, int *affected) {
+  if (q && q->model) {
+    for (int i = 0; i < q->model->field_count; i++) {
+      if (q->model->fields[i].flags & CORM_FLAG_SOFT_DELETE) {
+        corm_value_t ts = { .type = CORM_STRING, .is_null = false, .v.s = "deleted" };
+        corm_query_set(q, q->model->fields[i].name, ts);
+        return corm_update(q, affected);
+      }
+    }
+  }
+
   if (q && q->model && q->model->before_delete) {
     corm_err_t hook_err = q->model->before_delete(q->db, NULL);
     if (hook_err != CORM_OK)

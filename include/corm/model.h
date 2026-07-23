@@ -8,6 +8,7 @@
 #define CORM_FLAG_AUTOINC (1 << 1)
 #define CORM_FLAG_NOT_NULL (1 << 2)
 #define CORM_FLAG_UNIQUE (1 << 3)
+#define CORM_FLAG_SOFT_DELETE (1 << 4)
 
 typedef struct {
   const char *name;
