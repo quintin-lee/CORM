@@ -105,6 +105,7 @@ set(CORM_SOURCES
     src/backend/mysql.c
     src/backend/postgres.c
     src/internal/stmt_cache.c
+    src/internal/pool.c
 )
 
 # ── Library ──
@@ -170,7 +171,7 @@ if(CORM_BUILD_TESTS)
         target_link_libraries(test_backend_drivers corm ${CORM_EXTRA_LIBS})
         add_test(NAME test_backend_drivers COMMAND test_backend_drivers)
 
-        add_executable(test_pool tests/test_pool.c src/internal/pool.c)
+        add_executable(test_pool tests/test_pool.c)
         target_link_libraries(test_pool corm ${CORM_EXTRA_LIBS} pthread)
         add_test(NAME test_pool COMMAND test_pool)
 
