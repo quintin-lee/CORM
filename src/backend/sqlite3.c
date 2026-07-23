@@ -42,8 +42,8 @@ static corm_err_t sqlite_close(corm_t *db) {
 static corm_err_t sqlite_ping(corm_t *db) {
     sqlite3 *handle = (sqlite3 *)db->conn;
     if (!handle) return CORM_ERR_BACKEND;
-    sqlite3_exec(handle, "SELECT 1", NULL, NULL, NULL);
-    return CORM_OK;
+    int rc = sqlite3_exec(handle, "SELECT 1", NULL, NULL, NULL);
+    return rc == SQLITE_OK ? CORM_OK : CORM_ERR_BACKEND;
 }
 
 static corm_err_t sqlite_exec(corm_t *db, const char *sql,
