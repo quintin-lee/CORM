@@ -72,6 +72,10 @@ corm_err_t corm_stmt_cache_put(corm_stmt_cache_t *cache, const char *sql,
     return CORM_ERR_NOMEM;
 
   entry->sql = strdup(sql);
+  if (!entry->sql) {
+    free(entry);
+    return CORM_ERR_NOMEM;
+  }
   entry->stmt = stmt;
 
   entry->next = cache->head;
