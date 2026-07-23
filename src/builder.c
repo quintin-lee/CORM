@@ -33,18 +33,11 @@ corm_err_t corm_build_sql(corm_query_t *q, corm_strbuf_t *sql,
     if (q->order.len > 0)
       corm_strbuf_appendf(sql, " ORDER BY %s", corm_strbuf_cstr(&q->order));
     if (q->limit > 0 || q->offset > 0) {
-      if (bt == CORM_BACKEND_POSTGRES) {
-        int next_idx = q->param_count;
-        corm_strbuf_appendf(sql, " LIMIT $%d", next_idx);
-        if (q->offset > 0)
-          corm_strbuf_appendf(sql, " OFFSET $%d", next_idx + 1);
-      } else {
-        /* SQLite/MySQL: literal numbers (neither backend uses prepared
-         * LIMIT/OFFSET) */
-        corm_strbuf_appendf(sql, " LIMIT %d", q->limit);
-        if (q->offset > 0)
-          corm_strbuf_appendf(sql, " OFFSET %d", q->offset);
-      }
+      /* All backends: inline literal numbers — LIMIT/OFFSET are always
+       * integers, no injection risk, avoids PG $N placeholder complexity */
+      corm_strbuf_appendf(sql, " LIMIT %d", q->limit);
+      if (q->offset > 0)
+        corm_strbuf_appendf(sql, " OFFSET %d", q->offset);
     }
     return CORM_OK;
   }
