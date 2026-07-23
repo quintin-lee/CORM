@@ -160,6 +160,10 @@ if(CORM_BUILD_TESTS)
         add_executable(test_preload tests/test_preload.c)
         target_link_libraries(test_preload corm ${CORM_EXTRA_LIBS})
         add_test(NAME test_preload COMMAND test_preload)
+
+        add_executable(test_stmt_cache tests/test_stmt_cache.c src/internal/stmt_cache.c)
+        target_link_libraries(test_stmt_cache corm ${CORM_EXTRA_LIBS})
+        add_test(NAME test_stmt_cache COMMAND test_stmt_cache)
     endif()
 endif()
 
