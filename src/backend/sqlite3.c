@@ -51,8 +51,6 @@ static corm_err_t sqlite_exec(corm_t *db, const char *sql, corm_value_t *params,
                               int param_count) {
   sqlite3 *handle = (sqlite3 *)db->conn;
   sqlite3_stmt *stmt;
-  (void)params;
-  (void)param_count;
 
   const char *tail;
   int rc = sqlite3_prepare_v2(handle, sql, -1, &stmt, &tail);
@@ -107,9 +105,6 @@ static corm_err_t sqlite_query(corm_t *db, const char *sql,
                                corm_result_t **out) {
   sqlite3 *handle = (sqlite3 *)db->conn;
   sqlite3_stmt *stmt;
-  (void)params;
-  (void)param_count;
-
   int rc = sqlite3_prepare_v2(handle, sql, -1, &stmt, NULL);
   if (rc != SQLITE_OK) {
     snprintf(db->err_msg, sizeof(db->err_msg), "%s", sqlite3_errmsg(handle));
