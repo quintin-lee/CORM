@@ -16,13 +16,17 @@ typedef struct {
   size_t size;
   corm_stmt_entry_t *head;
   corm_stmt_entry_t *tail;
+  void (*entry_destroy_fn)(void *stmt);
 } corm_stmt_cache_t;
 
 corm_err_t corm_stmt_cache_create(size_t capacity,
                                   corm_stmt_cache_t **out_cache);
+void corm_stmt_cache_set_destroy_fn(corm_stmt_cache_t *cache,
+                                    void (*fn)(void *));
 void *corm_stmt_cache_get(corm_stmt_cache_t *cache, const char *sql);
 corm_err_t corm_stmt_cache_put(corm_stmt_cache_t *cache, const char *sql,
                                void *stmt);
+void *corm_stmt_cache_remove(corm_stmt_cache_t *cache, const char *sql);
 void corm_stmt_cache_destroy(corm_stmt_cache_t *cache);
 
 #endif /* CORM_STMT_CACHE_H */

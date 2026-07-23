@@ -14,6 +14,69 @@
 
 #ifdef CORM_HAVE_SQLITE3
 
+/* Statement cache helpers */
+static void sqlite_finalize_stmt(void *s) {
+  sqlite3_finalize((sqlite3_stmt *)s);
+}
+
+static void sqlite_bind_params(sqlite3_stmt *stmt, corm_value_t *params,
+                               int param_count) {
+  for (int i = 0; i < param_count; i++) {
+    corm_value_t *val = &params[i];
+    int idx = i + 1;
+    if (val->is_null) {
+      sqlite3_bind_null(stmt, idx);
+    } else {
+      switch (val->type) {
+      case CORM_INT:
+      case CORM_INT64:
+        sqlite3_bind_int64(stmt, idx, val->v.i);
+        break;
+      case CORM_FLOAT:
+      case CORM_DOUBLE:
+        sqlite3_bind_double(stmt, idx, val->v.f);
+        break;
+      case CORM_STRING:
+      case CORM_TEXT:
+        sqlite3_bind_text(stmt, idx, val->v.s, -1, SQLITE_TRANSIENT);
+        break;
+      case CORM_BOOL:
+        sqlite3_bind_int(stmt, idx, val->v.b ? 1 : 0);
+        break;
+      case CORM_BLOB:
+        sqlite3_bind_blob(stmt, idx, val->v.blob.data, (int)val->v.blob.len,
+                          SQLITE_TRANSIENT);
+        break;
+      }
+    }
+  }
+}
+
+static sqlite3_stmt *sqlite_get_stmt(corm_t *db, sqlite3 *handle,
+                                     const char *sql) {
+  sqlite3_stmt *stmt =
+      (sqlite3_stmt *)corm_stmt_cache_get(db->stmt_cache, sql);
+  if (stmt) {
+    sqlite3_reset(stmt);
+    sqlite3_clear_bindings(stmt);
+    return stmt;
+  }
+  const char *tail;
+  int rc = sqlite3_prepare_v2(handle, sql, -1, &stmt, &tail);
+  if (rc != SQLITE_OK) {
+    snprintf(db->err_msg, sizeof(db->err_msg), "%s", sqlite3_errmsg(handle));
+    return NULL;
+  }
+  corm_stmt_cache_put(db->stmt_cache, sql, stmt);
+  return stmt;
+}
+
+static void sqlite_cleanup_stmt(corm_t *db, const char *sql) {
+  void *s = corm_stmt_cache_remove(db->stmt_cache, sql);
+  if (s)
+    sqlite3_finalize((sqlite3_stmt *)s);
+}
+
 static corm_err_t sqlite_open(corm_t *db, const char *dsn) {
   sqlite3 *handle;
   int rc = sqlite3_open(dsn, &handle);
@@ -27,6 +90,9 @@ static corm_err_t sqlite_open(corm_t *db, const char *dsn) {
   /* Enable foreign keys */
   sqlite3_exec(handle, "PRAGMA foreign_keys=ON", NULL, NULL, NULL);
   db->conn = handle;
+  /* Wire up statement cache cleanup */
+  if (db->stmt_cache)
+    corm_stmt_cache_set_destroy_fn(db->stmt_cache, sqlite_finalize_stmt);
   return CORM_OK;
 }
 
@@ -50,51 +116,19 @@ static corm_err_t sqlite_ping(corm_t *db) {
 static corm_err_t sqlite_exec(corm_t *db, const char *sql, corm_value_t *params,
                               int param_count) {
   sqlite3 *handle = (sqlite3 *)db->conn;
-  sqlite3_stmt *stmt;
+  int rc;
 
-  const char *tail;
-  int rc = sqlite3_prepare_v2(handle, sql, -1, &stmt, &tail);
-  if (rc != SQLITE_OK) {
-    snprintf(db->err_msg, sizeof(db->err_msg), "%s", sqlite3_errmsg(handle));
+  sqlite3_stmt *stmt = sqlite_get_stmt(db, handle, sql);
+  if (!stmt)
     return CORM_ERR_BACKEND;
-  }
 
-  /* Bind params */
-  for (int i = 0; i < param_count; i++) {
-    corm_value_t *val = &params[i];
-    int idx = i + 1;
-    if (val->is_null) {
-      sqlite3_bind_null(stmt, idx);
-    } else {
-      switch (val->type) {
-      case CORM_INT:
-      case CORM_INT64:
-        sqlite3_bind_int64(stmt, idx, val->v.i);
-        break;
-      case CORM_FLOAT:
-      case CORM_DOUBLE:
-        sqlite3_bind_double(stmt, idx, val->v.f);
-        break;
-      case CORM_STRING:
-      case CORM_TEXT:
-        sqlite3_bind_text(stmt, idx, val->v.s, -1, SQLITE_TRANSIENT);
-        break;
-      case CORM_BOOL:
-        sqlite3_bind_int(stmt, idx, val->v.b ? 1 : 0);
-        break;
-      case CORM_BLOB:
-        sqlite3_bind_blob(stmt, idx, val->v.blob.data, (int)val->v.blob.len,
-                          SQLITE_TRANSIENT);
-        break;
-      }
-    }
-  }
+  sqlite_bind_params(stmt, params, param_count);
 
   rc = sqlite3_step(stmt);
-  sqlite3_finalize(stmt);
 
   if (rc != SQLITE_DONE && rc != SQLITE_ROW) {
     snprintf(db->err_msg, sizeof(db->err_msg), "%s", sqlite3_errmsg(handle));
+    sqlite_cleanup_stmt(db, sql);
     return CORM_ERR_BACKEND;
   }
   return CORM_OK;
@@ -104,43 +138,13 @@ static corm_err_t sqlite_query(corm_t *db, const char *sql,
                                corm_value_t *params, int param_count,
                                corm_result_t **out) {
   sqlite3 *handle = (sqlite3 *)db->conn;
-  sqlite3_stmt *stmt;
-  int rc = sqlite3_prepare_v2(handle, sql, -1, &stmt, NULL);
-  if (rc != SQLITE_OK) {
-    snprintf(db->err_msg, sizeof(db->err_msg), "%s", sqlite3_errmsg(handle));
-    return CORM_ERR_BACKEND;
-  }
+  int rc;
 
-  /* Bind params */
-  for (int i = 0; i < param_count; i++) {
-    corm_value_t *val = &params[i];
-    int idx = i + 1;
-    if (val->is_null) {
-      sqlite3_bind_null(stmt, idx);
-    } else {
-      switch (val->type) {
-      case CORM_INT:
-      case CORM_INT64:
-        sqlite3_bind_int64(stmt, idx, val->v.i);
-        break;
-      case CORM_FLOAT:
-      case CORM_DOUBLE:
-        sqlite3_bind_double(stmt, idx, val->v.f);
-        break;
-      case CORM_STRING:
-      case CORM_TEXT:
-        sqlite3_bind_text(stmt, idx, val->v.s, -1, SQLITE_TRANSIENT);
-        break;
-      case CORM_BOOL:
-        sqlite3_bind_int(stmt, idx, val->v.b ? 1 : 0);
-        break;
-      case CORM_BLOB:
-        sqlite3_bind_blob(stmt, idx, val->v.blob.data, (int)val->v.blob.len,
-                          SQLITE_TRANSIENT);
-        break;
-      }
-    }
-  }
+  sqlite3_stmt *stmt = sqlite_get_stmt(db, handle, sql);
+  if (!stmt)
+    return CORM_ERR_BACKEND;
+
+  sqlite_bind_params(stmt, params, param_count);
 
   int col_count = sqlite3_column_count(stmt);
 
@@ -154,7 +158,7 @@ static corm_err_t sqlite_query(corm_t *db, const char *sql,
   if (!all_rows || !col_types) {
     free(all_rows);
     free(col_types);
-    sqlite3_finalize(stmt);
+    sqlite_cleanup_stmt(db, sql);
     return CORM_ERR_NOMEM;
   }
 
@@ -166,7 +170,7 @@ static corm_err_t sqlite_query(corm_t *db, const char *sql,
       if (!tmp) {
         free(all_rows);
         free(col_types);
-        sqlite3_finalize(stmt);
+        sqlite_cleanup_stmt(db, sql);
         return CORM_ERR_NOMEM;
       }
       all_rows = tmp;
@@ -228,7 +232,7 @@ static corm_err_t sqlite_query(corm_t *db, const char *sql,
   if (rc != SQLITE_DONE) {
     free(all_rows);
     free(col_types);
-    sqlite3_finalize(stmt);
+    sqlite_cleanup_stmt(db, sql);
     snprintf(db->err_msg, sizeof(db->err_msg), "%s", sqlite3_errmsg(handle));
     return CORM_ERR_BACKEND;
   }
@@ -238,7 +242,7 @@ static corm_err_t sqlite_query(corm_t *db, const char *sql,
   if (!res) {
     free(all_rows);
     free(col_types);
-    sqlite3_finalize(stmt);
+    sqlite_cleanup_stmt(db, sql);
     return CORM_ERR_NOMEM;
   }
 
@@ -255,7 +259,6 @@ static corm_err_t sqlite_query(corm_t *db, const char *sql,
 
   free(all_rows);
   free(col_types);
-  sqlite3_finalize(stmt);
   *out = res;
   return CORM_OK;
 }

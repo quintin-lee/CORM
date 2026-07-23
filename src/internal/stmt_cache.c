@@ -62,6 +62,8 @@ corm_err_t corm_stmt_cache_put(corm_stmt_cache_t *cache, const char *sql,
     if (cache->head == evict)
       cache->head = NULL;
 
+    if (cache->entry_destroy_fn && evict->stmt)
+      cache->entry_destroy_fn(evict->stmt);
     free(evict->sql);
     free(evict);
     cache->size--;
@@ -89,12 +91,46 @@ corm_err_t corm_stmt_cache_put(corm_stmt_cache_t *cache, const char *sql,
   return CORM_OK;
 }
 
+void corm_stmt_cache_set_destroy_fn(corm_stmt_cache_t *cache,
+                                    void (*fn)(void *)) {
+  if (cache)
+    cache->entry_destroy_fn = fn;
+}
+
+void *corm_stmt_cache_remove(corm_stmt_cache_t *cache, const char *sql) {
+  if (!cache || !sql)
+    return NULL;
+  corm_stmt_entry_t *curr = cache->head;
+  while (curr) {
+    if (strcmp(curr->sql, sql) == 0) {
+      void *stmt = curr->stmt;
+      /* Unlink */
+      if (curr->prev)
+        curr->prev->next = curr->next;
+      if (curr->next)
+        curr->next->prev = curr->prev;
+      if (curr == cache->head)
+        cache->head = curr->next;
+      if (curr == cache->tail)
+        cache->tail = curr->prev;
+      free(curr->sql);
+      free(curr);
+      cache->size--;
+      return stmt;
+    }
+    curr = curr->next;
+  }
+  return NULL;
+}
+
 void corm_stmt_cache_destroy(corm_stmt_cache_t *cache) {
   if (!cache)
     return;
   corm_stmt_entry_t *curr = cache->head;
   while (curr) {
     corm_stmt_entry_t *next = curr->next;
+    if (cache->entry_destroy_fn && curr->stmt)
+      cache->entry_destroy_fn(curr->stmt);
     free(curr->sql);
     free(curr);
     curr = next;

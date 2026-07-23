@@ -103,6 +103,7 @@ set(CORM_SOURCES
     src/backend/sqlite3.c
     src/backend/mysql.c
     src/backend/postgres.c
+    src/internal/stmt_cache.c
 )
 
 # ── Library ──

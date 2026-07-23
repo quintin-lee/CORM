@@ -3,6 +3,7 @@
 
 #include "corm_pub.h"
 #include "hash.h"
+#include "stmt_cache.h"
 
 typedef struct {
   corm_hash_t models_by_table;
@@ -23,5 +24,6 @@ struct corm {
   int rows_affected_val;
   corm_logger_fn logger;
   void *logger_user_data;
+  corm_stmt_cache_t *stmt_cache;
 };
 #endif
