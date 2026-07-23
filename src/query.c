@@ -73,8 +73,6 @@ corm_query_t *corm_query_where(corm_query_t *q, const char *condition, ...) {
   corm_strbuf_append(&q->where, condition);
   /* Variadic params intentionally unsupported — use corm_query_bind()
    * explicitly */
-  (void)condition;
-  q->op = CORM_OP_SELECT;
   return q;
 }
 
@@ -82,8 +80,8 @@ corm_query_t *corm_query_or_where(corm_query_t *q, const char *condition, ...) {
   if (q->where.len > 0)
     corm_strbuf_append(&q->where, " OR ");
   corm_strbuf_append(&q->where, condition);
-  /* variadic params skipped for simplicity; use explicit bind() */
-  (void)condition;
+  /* Variadic params intentionally unsupported — use corm_query_bind()
+   * explicitly */
   return q;
 }
 
@@ -235,7 +233,7 @@ corm_query_t *corm_query_unscoped(corm_query_t *q) {
 corm_query_t *corm_query_preload(corm_query_t *q, const char *relation_name) {
   if (!q || !relation_name)
     return q;
-  // Store preloaded relation name
+  /* TODO: Preload/ eager-loading not yet implemented — this is a no-op */
   return q;
 }
 
