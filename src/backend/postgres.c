@@ -198,6 +198,15 @@ static corm_err_t pg_exec(corm_t *db, const char *sql,
             return CORM_ERR_BACKEND;
         }
         db->rows_affected_val = PQcmdTuples(pgres) ? atoi(PQcmdTuples(pgres)) : 0;
+        if (db->rows_affected_val > 0) {
+            /* For INSERT, try to get last insert ID from the result */
+            if (PQntuples(pgres) == 1 && PQnfields(pgres) >= 1) {
+                char *oid_str = PQgetvalue(pgres, 0, 0);
+                if (oid_str && oid_str[0]) {
+                    db->last_insert_id_val = strtoll(oid_str, NULL, 10);
+                }
+            }
+        }
         PQclear(pgres);
     } else {
         PGresult *pgres = PQexec(handle, sql);
@@ -208,6 +217,14 @@ static corm_err_t pg_exec(corm_t *db, const char *sql,
             return CORM_ERR_BACKEND;
         }
         db->rows_affected_val = PQcmdTuples(pgres) ? atoi(PQcmdTuples(pgres)) : 0;
+        if (db->rows_affected_val > 0) {
+            if (PQntuples(pgres) == 1 && PQnfields(pgres) >= 1) {
+                char *oid_str = PQgetvalue(pgres, 0, 0);
+                if (oid_str && oid_str[0]) {
+                    db->last_insert_id_val = strtoll(oid_str, NULL, 10);
+                }
+            }
+        }
         PQclear(pgres);
     }
 
@@ -392,15 +409,7 @@ static size_t pg_escape(corm_t *db, char *dst, const char *src, size_t len) {
 }
 
 static int64_t pg_last_id(corm_t *db) {
-    PGconn *handle = (PGconn *)db->conn;
-    PGresult *res = PQexec(handle, "SELECT LASTVAL()");
-    if (PQresultStatus(res) != PGRES_TUPLES_OK) {
-        PQclear(res);
-        return 0;
-    }
-    int64_t id = strtoll(PQgetvalue(res, 0, 0), NULL, 10);
-    PQclear(res);
-    return id;
+    return db->last_insert_id_val;
 }
 
 static int pg_affected(corm_t *db) {
