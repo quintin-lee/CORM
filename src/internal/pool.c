@@ -16,19 +16,50 @@ corm_err_t corm_pool_create(const char *dsn, corm_config_t config, corm_pool_t *
     return CORM_OK;
 }
 
+#include <time.h>
+
 corm_err_t corm_pool_acquire(corm_pool_t *pool, corm_t **out_db) {
     if (!pool || !out_db) return CORM_ERR_NULL;
     pthread_mutex_lock(&pool->lock);
 
     while (!pool->idle_head && pool->config.max_open_conns > 0 && pool->current_open >= pool->config.max_open_conns) {
-        pthread_cond_wait(&pool->cond, &pool->lock);
+        if (pool->config.timeout_ms > 0) {
+            struct timespec ts;
+            clock_gettime(CLOCK_REALTIME, &ts);
+            ts.tv_sec += pool->config.timeout_ms / 1000;
+            ts.tv_nsec += (pool->config.timeout_ms % 1000) * 1000000;
+            if (ts.tv_nsec >= 1000000000) {
+                ts.tv_sec += 1;
+                ts.tv_nsec -= 1000000000;
+            }
+            int rc = pthread_cond_timedwait(&pool->cond, &pool->lock, &ts);
+            if (rc != 0 && !pool->idle_head) {
+                pthread_mutex_unlock(&pool->lock);
+                return CORM_ERR_GENERIC;
+            }
+        } else {
+            pthread_cond_wait(&pool->cond, &pool->lock);
+        }
     }
 
     if (pool->idle_head) {
         corm_pool_node_t *node = pool->idle_head;
         pool->idle_head = node->next;
-        *out_db = node->db;
+        corm_t *db = node->db;
         free(node);
+
+        // Ping check on idle connection
+        if (corm_ping(db) != CORM_OK) {
+            corm_close(db);
+            corm_err_t err = corm_open_with_config(pool->dsn, pool->config, &db);
+            if (err != CORM_OK) {
+                pool->current_open--;
+                pthread_mutex_unlock(&pool->lock);
+                return err;
+            }
+        }
+
+        *out_db = db;
         pthread_mutex_unlock(&pool->lock);
         return CORM_OK;
     }
