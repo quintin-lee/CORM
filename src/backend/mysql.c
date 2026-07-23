@@ -111,7 +111,8 @@ static corm_err_t corm_mysql_ping(corm_t *db) {
 
 /* Bind corm_value_t params into a MYSQL_BIND array (caller must free) */
 static MYSQL_BIND *mysql_bind_params(corm_value_t *params, int param_count) {
-  MYSQL_BIND *bind = (MYSQL_BIND *)calloc((size_t)param_count, sizeof(MYSQL_BIND));
+  MYSQL_BIND *bind =
+      (MYSQL_BIND *)calloc((size_t)param_count, sizeof(MYSQL_BIND));
   if (!bind)
     return NULL;
   for (int i = 0; i < param_count; i++) {
@@ -147,7 +148,8 @@ static MYSQL_BIND *mysql_bind_params(corm_value_t *params, int param_count) {
       default:
         bind[i].buffer_type = MYSQL_TYPE_STRING;
         bind[i].buffer = params[i].v.s;
-        bind[i].buffer_length = params[i].v.s ? (unsigned long)strlen(params[i].v.s) : 0;
+        bind[i].buffer_length =
+            params[i].v.s ? (unsigned long)strlen(params[i].v.s) : 0;
         break;
       }
     }
@@ -210,7 +212,8 @@ static corm_err_t mysql_exec(corm_t *db, const char *sql, corm_value_t *params,
 }
 
 /* Map a MYSQL_FIELD type to corm_field_type_t */
-static corm_field_type_t mysql_field_to_corm_type(enum enum_field_types mysql_type) {
+static corm_field_type_t
+mysql_field_to_corm_type(enum enum_field_types mysql_type) {
   switch (mysql_type) {
   case MYSQL_TYPE_TINY:
   case MYSQL_TYPE_SHORT:
@@ -367,19 +370,29 @@ static corm_err_t mysql_stmt_query(corm_t *db, MYSQL *handle, const char *sql,
 
   if (row_count > 0) {
     /* Set up result bind buffers */
-    MYSQL_BIND *result_bind = (MYSQL_BIND *)calloc((size_t)col_count, sizeof(MYSQL_BIND));
+    MYSQL_BIND *result_bind =
+        (MYSQL_BIND *)calloc((size_t)col_count, sizeof(MYSQL_BIND));
     my_bool *is_null = (my_bool *)calloc((size_t)col_count, sizeof(my_bool));
-    unsigned long *lengths = (unsigned long *)calloc((size_t)col_count, sizeof(unsigned long));
+    unsigned long *lengths =
+        (unsigned long *)calloc((size_t)col_count, sizeof(unsigned long));
     my_bool *errors = (my_bool *)calloc((size_t)col_count, sizeof(my_bool));
     /* Per-column allocated buffer — freed after row copy */
     char **buffers = (char **)calloc((size_t)col_count, sizeof(char *));
-    unsigned long *buf_lens = (unsigned long *)calloc((size_t)col_count, sizeof(unsigned long));
+    unsigned long *buf_lens =
+        (unsigned long *)calloc((size_t)col_count, sizeof(unsigned long));
 
-    if (!result_bind || !is_null || !lengths || !errors || !buffers || !buf_lens) {
-      free(result_bind); free(is_null); free(lengths); free(errors);
-      for (int i = 0; i < col_count; i++) free(buffers[i]);
-      free(buffers); free(buf_lens);
-      mysql_free_result(meta); mysql_stmt_close(stmt);
+    if (!result_bind || !is_null || !lengths || !errors || !buffers ||
+        !buf_lens) {
+      free(result_bind);
+      free(is_null);
+      free(lengths);
+      free(errors);
+      for (int i = 0; i < col_count; i++)
+        free(buffers[i]);
+      free(buffers);
+      free(buf_lens);
+      mysql_free_result(meta);
+      mysql_stmt_close(stmt);
       corm_result_release(res);
       return CORM_ERR_NOMEM;
     }
@@ -390,10 +403,18 @@ static corm_err_t mysql_stmt_query(corm_t *db, MYSQL *handle, const char *sql,
       result_bind[i].error = &errors[i];
       /* Map CORM type → MySQL type for result binding */
       switch (res->column_types[i]) {
-      case CORM_INT64:  result_bind[i].buffer_type = MYSQL_TYPE_LONGLONG; break;
-      case CORM_DOUBLE: result_bind[i].buffer_type = MYSQL_TYPE_DOUBLE;  break;
-      case CORM_BLOB:   result_bind[i].buffer_type = MYSQL_TYPE_BLOB;    break;
-      default:          result_bind[i].buffer_type = MYSQL_TYPE_STRING;  break;
+      case CORM_INT64:
+        result_bind[i].buffer_type = MYSQL_TYPE_LONGLONG;
+        break;
+      case CORM_DOUBLE:
+        result_bind[i].buffer_type = MYSQL_TYPE_DOUBLE;
+        break;
+      case CORM_BLOB:
+        result_bind[i].buffer_type = MYSQL_TYPE_BLOB;
+        break;
+      default:
+        result_bind[i].buffer_type = MYSQL_TYPE_STRING;
+        break;
       }
 
       /* Allocate buffer based on column type */
@@ -412,16 +433,18 @@ static corm_err_t mysql_stmt_query(corm_t *db, MYSQL *handle, const char *sql,
         break;
       case CORM_BLOB:
         /* Use max_length from stored result, fallback to 64KB */
-        buf_lens[i] = (unsigned long)(fields[i].max_length > 0
-                          ? fields[i].max_length : 65536);
+        buf_lens[i] =
+            (unsigned long)(fields[i].max_length > 0 ? fields[i].max_length
+                                                     : 65536);
         buffers[i] = (char *)calloc(1, buf_lens[i]);
         result_bind[i].buffer = buffers[i];
         result_bind[i].buffer_length = buf_lens[i];
         break;
       default:
         /* TEXT / VARCHAR etc */
-        buf_lens[i] = (unsigned long)(fields[i].max_length > 0
-                          ? fields[i].max_length + 1 : 4096);
+        buf_lens[i] =
+            (unsigned long)(fields[i].max_length > 0 ? fields[i].max_length + 1
+                                                     : 4096);
         buffers[i] = (char *)calloc(1, buf_lens[i]);
         result_bind[i].buffer = buffers[i];
         result_bind[i].buffer_length = buf_lens[i];
@@ -431,10 +454,16 @@ static corm_err_t mysql_stmt_query(corm_t *db, MYSQL *handle, const char *sql,
 
     if (mysql_stmt_bind_result(stmt, result_bind) != 0) {
       snprintf(db->err_msg, sizeof(db->err_msg), "%s", mysql_stmt_error(stmt));
-      free(result_bind); free(is_null); free(lengths); free(errors);
-      for (int i = 0; i < col_count; i++) free(buffers[i]);
-      free(buffers); free(buf_lens);
-      mysql_free_result(meta); mysql_stmt_close(stmt);
+      free(result_bind);
+      free(is_null);
+      free(lengths);
+      free(errors);
+      for (int i = 0; i < col_count; i++)
+        free(buffers[i]);
+      free(buffers);
+      free(buf_lens);
+      mysql_free_result(meta);
+      mysql_stmt_close(stmt);
       corm_result_release(res);
       return CORM_ERR_BACKEND;
     }
@@ -475,9 +504,14 @@ static corm_err_t mysql_stmt_query(corm_t *db, MYSQL *handle, const char *sql,
       r++;
     }
 
-    free(result_bind); free(is_null); free(lengths); free(errors);
-    for (int i = 0; i < col_count; i++) free(buffers[i]);
-    free(buffers); free(buf_lens);
+    free(result_bind);
+    free(is_null);
+    free(lengths);
+    free(errors);
+    for (int i = 0; i < col_count; i++)
+      free(buffers[i]);
+    free(buffers);
+    free(buf_lens);
   }
 
   mysql_free_result(meta);

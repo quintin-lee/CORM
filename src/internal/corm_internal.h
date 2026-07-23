@@ -8,8 +8,8 @@ typedef struct {
   corm_hash_t models_by_table;
   corm_hash_t models_by_name;
 } corm_registry_t;
-corm_err_t corm_model_registry_init(corm_registry_t*reg);
-void corm_model_registry_free(corm_registry_t*reg);
+corm_err_t corm_model_registry_init(corm_registry_t *reg);
+void corm_model_registry_free(corm_registry_t *reg);
 
 struct corm {
   corm_backend_t *backend;

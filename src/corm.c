@@ -156,7 +156,8 @@ corm_err_t corm_release_savepoint(corm_t *db, const char *name) {
 #include <time.h>
 
 void corm_set_logger(corm_t *db, corm_logger_fn logger, void *user_data) {
-  if (!db) return;
+  if (!db)
+    return;
   db->logger = logger;
   db->logger_user_data = user_data;
 }
@@ -171,7 +172,8 @@ corm_err_t corm_exec(corm_t *db, const char *sql) {
   corm_err_t err = db->backend->exec(db, sql, NULL, 0);
 
   clock_gettime(CLOCK_MONOTONIC, &end);
-  uint64_t elapsed_us = (uint64_t)(end.tv_sec - start.tv_sec) * 1000000 + (uint64_t)(end.tv_nsec - start.tv_nsec) / 1000;
+  uint64_t elapsed_us = (uint64_t)(end.tv_sec - start.tv_sec) * 1000000 +
+                        (uint64_t)(end.tv_nsec - start.tv_nsec) / 1000;
 
   db->last_err = err;
   if (err) {
@@ -196,7 +198,8 @@ corm_err_t corm_raw(corm_t *db, const char *sql, corm_result_t **out) {
   corm_err_t err = db->backend->query(db, sql, NULL, 0, out);
 
   clock_gettime(CLOCK_MONOTONIC, &end);
-  uint64_t elapsed_us = (uint64_t)(end.tv_sec - start.tv_sec) * 1000000 + (uint64_t)(end.tv_nsec - start.tv_nsec) / 1000;
+  uint64_t elapsed_us = (uint64_t)(end.tv_sec - start.tv_sec) * 1000000 +
+                        (uint64_t)(end.tv_nsec - start.tv_nsec) / 1000;
 
   db->last_err = err;
   if (err) {
