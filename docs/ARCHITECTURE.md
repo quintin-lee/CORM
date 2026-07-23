@@ -12,29 +12,43 @@ CORM is a lightweight GORM-inspired ORM/query builder for C. It provides:
 - Auto-migration from model definitions
 - Result sets with typed accessors and reference counting
 
-**Public API surface**: `src/corm_pub.h` — this is the only header users need to include.
+**Public API surface**: `include/corm/corm.h` — include this header (or individual headers from `include/corm/`) for the full API.
 
 ## Directory Structure
 
 ```
-src/
-├── corm_pub.h              # Public API (types + declarations)
-├── internal/               # Private implementation details
-│   ├── corm_internal.h     # struct corm definition, registry type
-│   ├── strbuf.h            # Dynamic string buffer
-│   └── hash.h              # String-keyed hash table (djb2)
-├── corm.c                  # Core: DSN parsing, open/close/exec/raw/init
-├── model.c                 # Model registry, field value mapping
-├── query.c                 # Query builder, execution, convenience APIs
-├── result.c                # Result set management, scalar helpers
-├── migration.c             # Auto-migration (CREATE TABLE)
-├── builder.c               # SQL generation from query state
-├── dialect.c               # Backend-specific SQL fragments
-└── backend/                # Database drivers
-    ├── backend.c           # Registry (array of corm_backend_t*)
-    ├── sqlite3.c           # SQLite3 driver
-    ├── mysql.c             # MySQL driver
-    └── postgres.c          # PostgreSQL driver
+crom/
+├── include/corm/            # Public headers
+│   ├── corm.h               # Aggregate header (includes all below)
+│   ├── types.h              # Error codes, corm_value_t tagged union
+│   ├── model.h              # Model/field definitions, CORM_FIELD macro
+│   ├── query.h              # Query builder API
+│   ├── result.h             # Result set iteration & typed accessors
+│   ├── config.h             # Connection configuration
+│   ├── backend.h            # Backend vtable type + registration
+│   └── pool.h               # Connection pool API
+├── src/
+│   ├── corm.c               # Core: DSN parsing, open/close/exec/raw/init
+│   ├── model.c              # Model registry, field value mapping
+│   ├── query.c              # Query builder, execution, convenience APIs
+│   ├── result.c             # Result set management, scalar helpers
+│   ├── migration.c          # Auto-migration (CREATE TABLE)
+│   ├── builder.c            # SQL generation from query state
+│   ├── dialect.c            # Backend-specific SQL fragments
+│   ├── internal/            # Private implementation details
+│   │   ├── corm_internal.h  # struct corm definition, registry type
+│   │   ├── strbuf.h         # Dynamic string buffer
+│   │   ├── hash.h           # String-keyed hash table (djb2)
+│   │   ├── pool.h / pool.c  # Connection pool internals
+│   │   └── stmt_cache.h / c # LRU prepared statement cache
+│   └── backend/             # Database drivers
+│       ├── backend.c        # Registry (array of corm_backend_t*)
+│       ├── sqlite3.c        # SQLite3 driver
+│       ├── mysql.c          # MySQL driver (prepared statements)
+│       └── postgres.c       # PostgreSQL driver (PQexecParams)
+├── tests/                   # 14 test suites
+├── examples/                # Usage examples
+└── docs/                    # Design documents
 ```
 
 ## Core Data Flow
@@ -129,7 +143,7 @@ Assembles SQL from fragments stored in `corm_strbuf_t` members:
 
 - **Identifier quoting**: All table and field names are wrapped via `qident()` which calls `corm_dialect_quote()` — prevents SQL injection on structural elements
 - **Placeholder strategy**: INSERT/UPDATE use `?` (SQLite/MySQL) or `$1, $2` (PostgreSQL) based on `corm_dialect_placeholder(bt, index)`
-- **LIMIT/OFFSET**: Handled specially — SQLite uses literal numbers, MySQL/PostgreSQL use placeholders bound by the caller
+- **LIMIT/OFFSET**: All backends use inline literal integers — limits and offsets are always set programmatically, never from user input, so there is no injection risk. This avoids PostgreSQL `$n` placeholder complexity.
 - **UPDATE SET**: Two paths — if `set_clause` has content, it scans for `?` and replaces with dialect placeholders; otherwise iterates non-PK fields
 
 ### 5. Migration (`migration.c`)
@@ -157,7 +171,7 @@ Provides backend-specific SQL fragments:
 | `corm_dialect_quote()` | `"` | `` ` `` | `"` |
 | `corm_dialect_placeholder()` | `?` | `?` | `$n` |
 | `corm_dialect_autoinc()` | `INTEGER PRIMARY KEY AUTOINCREMENT` | `AUTO_INCREMENT` | `SERIAL PRIMARY KEY` |
-| `corm_dialect_limit_offset()` | `LIMIT %d OFFSET %d` | `LIMIT ? OFFSET ?` | `LIMIT $n OFFSET $n` |
+| `corm_dialect_limit_offset()` | `LIMIT %d OFFSET %d` (all backends use literal integers) | | |
 | `corm_dialect_if_not_exists()` | `IF NOT EXISTS` (all) | `IF NOT EXISTS` (all) | `IF NOT EXISTS` (all) |
 | `corm_dialect_type_name()` | INTEGER/REAL/TEXT/BLOB | INT/BIGINT/FLOAT/VARCHAR(n)/TEXT/BLOB/TINYINT(1) | INTEGER/BIGINT/REAL/DOUBLE PRECISION/VARCHAR(n)/TEXT/BYTEA/BOOLEAN |
 
@@ -215,7 +229,69 @@ typedef struct corm_backend {
 
 **Column type detection**: Backends populate `column_types[]` during result creation. SQLite determines types from first row's `sqlite3_column_type()` because post-reset returns SQLITE_NULL.
 
-### 9. Internal Utilities
+### 9. Soft Delete (`query.c` / `model.h`)
+
+The soft delete mechanism marks rows as deleted without physical removal:
+
+1. **Field flag**: A model field tagged with `CORM_FLAG_SOFT_DELETE` identifies the "deleted at" timestamp column.
+2. **Delete conversion**: `corm_delete()` detects the flag and generates `UPDATE table SET deleted_at = <now> WHERE ...` instead of `DELETE FROM`.
+3. **Auto-filtering**: `corm_find()` and `corm_first()` automatically append `AND <soft_delete_col> IS NULL` to the WHERE clause.
+4. **Unscoped bypass**: `corm_query_unscoped(q)` clears the soft-delete filter, allowing queries to see soft-deleted rows.
+
+The auto-filter is applied in `corm_build_sql()` when:
+- The model has a field with `CORM_FLAG_SOFT_DELETE`
+- `corm_query_unscoped()` has NOT been called on the query
+- The operation is SELECT (via `corm_find`/`corm_first`) or DELETE (via `corm_delete`)
+
+### 10. Hooks (`query.c`)
+
+Model hooks provide lifecycle callbacks for CRUD operations. Hooks are defined as function pointers in `corm_model_t`:
+
+| Hook | Signature | Triggered by |
+|---|---|---|
+| `before_create` | `corm_err_t (*)(corm_t*, corm_model_t*, void*)` | `corm_create()` / `corm_create_one()` |
+| `after_create` | `corm_err_t (*)(corm_t*, corm_model_t*, void*)` | After successful INSERT |
+| `before_update` | `corm_err_t (*)(corm_t*, corm_model_t*, void*)` | `corm_update()` |
+| `after_update` | `corm_err_t (*)(corm_t*, corm_model_t*, void*)` | After successful UPDATE |
+| `before_delete` | `corm_err_t (*)(corm_t*, corm_model_t*, void*)` | `corm_delete()` |
+| `after_delete` | `corm_err_t (*)(corm_t*, corm_model_t*, void*)` | After successful DELETE |
+| `after_find` | `corm_err_t (*)(corm_t*, corm_model_t*, void*)` | After row data is read into struct |
+
+**Execution flow**: Hooks run in the order: `before_*` → execute SQL → `after_*`. If a `before_*` hook returns non-OK, the SQL execution is skipped. The `void*` argument is the record being operated on, cast to the model's struct type.
+
+### 11. Connection Pool (`internal/pool.c` / `include/corm/pool.h`)
+
+The connection pool manages reuse of database connections:
+
+- **Public API**: `corm_pool_create()`, `corm_pool_acquire()`, `corm_pool_release()`, `corm_pool_destroy()`
+- **Max connections**: Guarded by `max_open_conns` in `corm_config_t`. Reaching the limit causes `acquire` to return an error immediately (no queueing).
+- **Idle management**: `max_idle_conns` controls how many connections remain open after release. Excess idle connections are closed.
+- **Lifetime limit**: `conn_max_lifetime_ms` — connections older than this are closed and replaced on next acquire.
+- **Ping on reuse**: Before returning a pooled connection, `corm_pool_acquire()` calls `backend->ping()` to verify the connection is alive. Dead connections are closed and a new one is created.
+- **Thread safety**: Pool operations are guarded by a mutex.
+
+`corm_open_with_config()` internally uses the pool when `max_open_conns > 0`.
+
+### 12. Prepared Statement Cache (`internal/stmt_cache.c`)
+
+The statement cache stores backend-specific prepared statement handles keyed by SQL text:
+
+- **LRU eviction**: A doubly-linked list tracks usage order. When `max_capacity` is reached, the least recently used entry is evicted.
+- **TTL**: Each entry has a `ttl_ms` — entries older than this are invalidated on next lookup.
+- **Hash table**: `corm_hash_t` maps SQL text → `corm_stmt_cache_entry_t*` for O(1) lookup.
+- **Not yet integrated**: The cache module is implemented and tested but not yet wired into the backend drivers. Currently each backend prepares statements fresh on every call.
+
+### 13. Logger (`corm.c`)
+
+The pluggable logger intercepts all SQL execution events:
+
+- **Installation**: `corm_set_logger(db, callback_fn, user_data)`
+- **Callback type**: `void (*)(void *user_data, corm_log_level_t level, const char *sql, int64_t elapsed_us, corm_err_t err)`
+- **Log levels**: `CORM_LOG_DEBUG`, `CORM_LOG_INFO`, `CORM_LOG_WARN`, `CORM_LOG_ERROR`
+- **Timing**: `elapsed_us` measures microseconds between SQL submission and completion
+- **Coverage**: Both `corm_exec()` and `corm_raw()` invoke the logger. All backend exec/query operations are timed.
+
+### 14. Internal Utilities
 
 **strbuf.h** — Dynamic string buffer for SQL assembly:
 - Exponential growth (doubling from initial 64 bytes)
@@ -241,7 +317,7 @@ typedef struct corm_backend {
    - Add `-DCORM_HAVE_<NAME>` definition when found
    - Add source file to `CORM_SOURCES`
    - Link library to `corm` target
-7. Update `corm_pub.h`: add `CORM_BACKEND_<NAME>` to `corm_backend_type_t` enum
+7. Update `include/corm/backend.h`: add `CORM_BACKEND_<NAME>` to `corm_backend_type_t` enum
 8. Update `dialect.c`: add case for new backend in `corm_dialect_quote()`, `corm_dialect_placeholder()`, etc.
 9. Write tests in `tests/test_<name>.c`
 
