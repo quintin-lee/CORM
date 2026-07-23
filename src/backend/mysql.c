@@ -252,6 +252,13 @@ static corm_err_t mysql_simple_query(MYSQL *handle, corm_result_t **out) {
   MYSQL_FIELD *fields = mysql_fetch_fields(mysql_res);
   for (int i = 0; i < col_count; i++) {
     res->column_names[i] = strdup(fields[i].name);
+    if (!res->column_names[i]) {
+      for (int j = 0; j < i; j++)
+        free(res->column_names[j]);
+      mysql_free_result(mysql_res);
+      corm_result_release(res);
+      return CORM_ERR_NOMEM;
+    }
     res->column_types[i] = mysql_field_to_corm_type(fields[i].type);
   }
 
