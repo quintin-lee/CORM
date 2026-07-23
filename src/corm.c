@@ -115,6 +115,27 @@ corm_err_t corm_rollback(corm_t *db) {
     return db->backend->rollback(db);
 }
 
+corm_err_t corm_savepoint(corm_t *db, const char *name) {
+    if (!db || !name) return CORM_ERR_NULL;
+    char sql[256];
+    snprintf(sql, sizeof(sql), "SAVEPOINT %s", name);
+    return corm_exec(db, sql);
+}
+
+corm_err_t corm_rollback_to(corm_t *db, const char *name) {
+    if (!db || !name) return CORM_ERR_NULL;
+    char sql[256];
+    snprintf(sql, sizeof(sql), "ROLLBACK TO SAVEPOINT %s", name);
+    return corm_exec(db, sql);
+}
+
+corm_err_t corm_release_savepoint(corm_t *db, const char *name) {
+    if (!db || !name) return CORM_ERR_NULL;
+    char sql[256];
+    snprintf(sql, sizeof(sql), "RELEASE SAVEPOINT %s", name);
+    return corm_exec(db, sql);
+}
+
 /* ── Raw SQL ── */
 
 corm_err_t corm_exec(corm_t *db, const char *sql) {

@@ -58,14 +58,26 @@ static corm_err_t create_table(corm_t *db, corm_backend_type_t backend,
 }
 
 corm_err_t corm_auto_migrate(corm_t *db, corm_model_t *models[], int model_count) {
+    if (!db || !models) return CORM_ERR_NULL;
     corm_backend_type_t backend = db->backend->type;
 
     for (int i = 0; i < model_count; i++) {
-        corm_err_t err = create_table(db, backend, models[i]);
-        if (err != CORM_OK && err != CORM_ERR_GENERIC) {
-            /* If table already exists, try ALTER later */
-            /* For v1, just log and continue */
-            continue;
+        corm_model_t *m = models[i];
+        create_table(db, backend, m);
+
+        /* Incremental column additions for existing tables */
+        for (int j = 0; j < m->field_count; j++) {
+            corm_field_t *f = &m->fields[j];
+            if (f->flags & CORM_FLAG_PRIMARY) continue; // Skip primary key in ALTER TABLE
+
+            char alter_sql[512];
+            char type_buf[64];
+            corm_dialect_type_name_str(backend, f->type, f->size, type_buf, sizeof(type_buf));
+
+            snprintf(alter_sql, sizeof(alter_sql), "ALTER TABLE %s ADD COLUMN %s %s;",
+                     m->table_name, f->name, type_buf);
+            /* corm_exec will ignore error if column already exists */
+            corm_exec(db, alter_sql);
         }
     }
 

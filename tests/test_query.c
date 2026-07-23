@@ -287,6 +287,29 @@ static void test_dialect(void) {
     PASS();
 }
 
+static void test_batch_insert(void) {
+    TEST("corm_create_batch inserts items in batches");
+    corm_t *db;
+    corm_open("sqlite3://:memory:", &db);
+    corm_register_model(db, &test_user_model);
+    corm_model_t *models[] = { &test_user_model };
+    corm_auto_migrate(db, models, 1);
+
+    typedef struct { int id; char name[256]; int age; } TestUser;
+    TestUser users[3] = {
+        { .name = "User1", .age = 20 },
+        { .name = "User2", .age = 25 },
+        { .name = "User3", .age = 30 },
+    };
+
+    int inserted = 0;
+    corm_err_t err = corm_create_batch(db, &test_user_model, users, 3, 2, &inserted);
+    assert(err == CORM_OK);
+    assert(inserted == 3);
+    corm_close(db);
+    PASS();
+}
+
 int main(void) {
     printf("CORM Query Builder Tests\n");
     printf("════════════════════════\n\n");
@@ -300,6 +323,7 @@ int main(void) {
     test_build_update_pg();
     test_build_delete();
     test_dialect();
+    test_batch_insert();
 
     printf("\nResults: %d passed, %d failed\n", tests_passed, tests_failed);
     return tests_failed > 0 ? 1 : 0;

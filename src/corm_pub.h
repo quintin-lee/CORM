@@ -85,6 +85,9 @@ extern corm_err_t corm_ping(corm_t*db);
 extern corm_err_t corm_begin(corm_t*db);
 extern corm_err_t corm_commit(corm_t*db);
 extern corm_err_t corm_rollback(corm_t*db);
+extern corm_err_t corm_savepoint(corm_t *db, const char *name);
+extern corm_err_t corm_rollback_to(corm_t *db, const char *name);
+extern corm_err_t corm_release_savepoint(corm_t *db, const char *name);
 extern corm_err_t corm_exec(corm_t*db,const char*sql);
 extern corm_err_t corm_raw(corm_t*db,const char*sql,corm_result_t**out);
 extern const char*corm_err_string(corm_err_t err);
@@ -128,6 +131,20 @@ extern corm_query_t*corm_query_limit(corm_query_t*q,int limit);
 extern corm_query_t*corm_query_offset(corm_query_t*q,int offset);
 extern corm_query_t*corm_query_bind(corm_query_t*q,corm_value_t val);
 extern corm_query_t*corm_query_set(corm_query_t*q,const char*field,corm_value_t val);
+typedef enum {
+    CORM_REL_HAS_ONE,
+    CORM_REL_HAS_MANY,
+    CORM_REL_BELONGS_TO
+} corm_relation_type_t;
+
+typedef struct {
+    const char *name;
+    corm_relation_type_t type;
+    const char *target_table;
+    const char *foreign_key;
+} corm_relation_t;
+
+extern corm_query_t* corm_query_preload(corm_query_t *q, const char *relation_name);
 extern corm_query_t*corm_query_set_raw(corm_query_t*q,const char*clause);
 extern corm_err_t corm_find(corm_query_t*q,corm_result_t**out);
 extern corm_err_t corm_first(corm_query_t*q,void*record);
@@ -136,6 +153,7 @@ extern corm_err_t corm_update(corm_query_t*q,int*affected);
 extern corm_err_t corm_delete(corm_query_t*q,int*affected);
 extern corm_err_t corm_find_all(corm_t*db,corm_model_t*model,const char*where,void*records,int*count);
 extern corm_err_t corm_create_one(corm_t*db,corm_model_t*model,void*record,int64_t*insert_id);
+extern corm_err_t corm_create_batch(corm_t *db, corm_model_t *model, void *records, int count, int batch_size, int *inserted_count);
 
 extern const char *corm_dialect_if_not_exists(corm_backend_type_t backend);
 extern const char *corm_dialect_quote(corm_backend_type_t backend, const char *name);

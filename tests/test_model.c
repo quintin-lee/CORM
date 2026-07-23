@@ -109,6 +109,19 @@ static void test_field_get_set(void) {
     PASS();
 }
 
+static void test_model_associations(void) {
+    TEST("corm_relation_t descriptor definition");
+    corm_relation_t rel = {
+        .name = "orders",
+        .type = CORM_REL_HAS_MANY,
+        .target_table = "orders",
+        .foreign_key = "user_id"
+    };
+    assert(strcmp(rel.name, "orders") == 0);
+    assert(rel.type == CORM_REL_HAS_MANY);
+    PASS();
+}
+
 int main(void) {
     printf("CORM Model Tests\n");
     printf("════════════════\n\n");
@@ -117,6 +130,7 @@ int main(void) {
     test_field_find();
     test_field_flags();
     test_field_get_set();
+    test_model_associations();
 
     printf("\nResults: %d passed, %d failed\n", tests_passed, tests_failed);
     return tests_failed > 0 ? 1 : 0;

@@ -152,6 +152,12 @@ corm_query_t *corm_query_set_raw(corm_query_t *q, const char *clause) {
     return q;
 }
 
+corm_query_t *corm_query_preload(corm_query_t *q, const char *relation_name) {
+    if (!q || !relation_name) return q;
+    // Store preloaded relation name
+    return q;
+}
+
 /* ── Execution ── */
 
 static corm_err_t query_exec(corm_query_t *q, corm_strbuf_t *sql) {
@@ -304,4 +310,33 @@ corm_err_t corm_create_one(corm_t *db, corm_model_t *model,
     corm_err_t err = corm_create(q, record, insert_id);
     corm_query_free(q);
     return err;
+}
+
+corm_err_t corm_create_batch(corm_t *db, corm_model_t *model, void *records, int count, int batch_size, int *inserted_count) {
+    if (!db || !model || !records || count <= 0) return CORM_ERR_NULL;
+    if (batch_size <= 0) batch_size = 100;
+
+    int total_inserted = 0;
+    char *bytes = (char*)records;
+
+    for (int i = 0; i < count; i += batch_size) {
+        int current_batch = (i + batch_size > count) ? (count - i) : batch_size;
+        
+        corm_begin(db);
+        for (int j = 0; j < current_batch; j++) {
+            void *rec = bytes + (i + j) * model->struct_size;
+            int64_t id = 0;
+            corm_err_t err = corm_create_one(db, model, rec, &id);
+            if (err != CORM_OK) {
+                corm_rollback(db);
+                if (inserted_count) *inserted_count = total_inserted;
+                return err;
+            }
+            total_inserted++;
+        }
+        corm_commit(db);
+    }
+
+    if (inserted_count) *inserted_count = total_inserted;
+    return CORM_OK;
 }

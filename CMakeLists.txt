@@ -119,6 +119,18 @@ if(CORM_BUILD_TESTS)
         add_executable(test_sqlite tests/test_sqlite.c)
         target_link_libraries(test_sqlite corm ${CORM_EXTRA_LIBS})
         add_test(NAME test_sqlite COMMAND test_sqlite)
+
+        add_executable(test_backend_drivers tests/test_backend_drivers.c)
+        target_link_libraries(test_backend_drivers corm ${CORM_EXTRA_LIBS})
+        add_test(NAME test_backend_drivers COMMAND test_backend_drivers)
+
+        add_executable(test_pool tests/test_pool.c src/internal/pool.c)
+        target_link_libraries(test_pool corm ${CORM_EXTRA_LIBS} pthread)
+        add_test(NAME test_pool COMMAND test_pool)
+
+        add_executable(test_migration tests/test_migration.c)
+        target_link_libraries(test_migration corm ${CORM_EXTRA_LIBS})
+        add_test(NAME test_migration COMMAND test_migration)
     endif()
 endif()
 

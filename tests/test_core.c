@@ -54,6 +54,14 @@ static void test_core_null_checks(void) {
     PASS();
 }
 
+static void test_savepoint(void) {
+    TEST("Savepoint transaction API null checks");
+    assert(corm_savepoint(NULL, "sp1") == CORM_ERR_NULL);
+    assert(corm_rollback_to(NULL, "sp1") == CORM_ERR_NULL);
+    assert(corm_release_savepoint(NULL, "sp1") == CORM_ERR_NULL);
+    PASS();
+}
+
 int main(void) {
     printf("CORM Core Tests\n");
     printf("═══════════════\n\n");
@@ -61,6 +69,7 @@ int main(void) {
     test_error_codes();
     test_config_defaults();
     test_core_null_checks();
+    test_savepoint();
 
     printf("\nResults: %d passed, %d failed\n", tests_passed, tests_failed);
     return tests_failed > 0 ? 1 : 0;
