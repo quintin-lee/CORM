@@ -3,8 +3,8 @@
 #include <stdio.h>
 
 typedef struct {
-    int id;
-    char name[64];
+  int id;
+  char name[64];
 } UserV1;
 
 static corm_field_t u1_fields[] = {
@@ -21,9 +21,9 @@ static corm_model_t model_v1 = {
 };
 
 typedef struct {
-    int id;
-    char name[64];
-    char email[128];
+  int id;
+  char name[64];
+  char email[128];
 } UserV2;
 
 static corm_field_t u2_fields[] = {
@@ -41,23 +41,23 @@ static corm_model_t model_v2 = {
 };
 
 void test_incremental_migration(void) {
-    corm_t *db;
-    corm_open("sqlite3://:memory:", &db);
-    corm_register_model(db, &model_v1);
+  corm_t *db;
+  corm_open("sqlite3://:memory:", &db);
+  corm_register_model(db, &model_v1);
 
-    corm_model_t *m1[] = { &model_v1 };
-    assert(corm_auto_migrate(db, m1, 1) == CORM_OK);
+  corm_model_t *m1[] = {&model_v1};
+  assert(corm_auto_migrate(db, m1, 1) == CORM_OK);
 
-    // Migrate to V2 (adds email column)
-    corm_register_model(db, &model_v2);
-    corm_model_t *m2[] = { &model_v2 };
-    assert(corm_auto_migrate(db, m2, 1) == CORM_OK);
+  // Migrate to V2 (adds email column)
+  corm_register_model(db, &model_v2);
+  corm_model_t *m2[] = {&model_v2};
+  assert(corm_auto_migrate(db, m2, 1) == CORM_OK);
 
-    corm_close(db);
-    printf("test_incremental_migration PASSED\n");
+  corm_close(db);
+  printf("test_incremental_migration PASSED\n");
 }
 
 int main(void) {
-    test_incremental_migration();
-    return 0;
+  test_incremental_migration();
+  return 0;
 }

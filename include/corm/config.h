@@ -4,11 +4,11 @@
 #include <stdbool.h>
 
 typedef struct {
-    int max_open_conns;
-    int max_idle_conns;
-    int conn_max_lifetime_ms;
-    int timeout_ms;
-    bool verbose_logging;
+  int max_open_conns;
+  int max_idle_conns;
+  int conn_max_lifetime_ms;
+  int timeout_ms;
+  bool verbose_logging;
 } corm_config_t;
 
 #define CORM_DEFAULT_CONFIG {0, 2, 0, 30000, false}
