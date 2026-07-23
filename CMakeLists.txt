@@ -16,6 +16,7 @@ option(CORM_BUILD_TESTS   "Build tests"                 ON)
 option(CORM_BUILD_EXAMPLES "Build examples"             ON)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 # ── Find dependencies ──
 if(CORM_WITH_SQLITE3)
@@ -131,6 +132,10 @@ if(CORM_BUILD_TESTS)
         add_executable(test_migration tests/test_migration.c)
         target_link_libraries(test_migration corm ${CORM_EXTRA_LIBS})
         add_test(NAME test_migration COMMAND test_migration)
+
+        add_executable(test_hooks tests/test_hooks.c)
+        target_link_libraries(test_hooks corm ${CORM_EXTRA_LIBS})
+        add_test(NAME test_hooks COMMAND test_hooks)
     endif()
 endif()
 

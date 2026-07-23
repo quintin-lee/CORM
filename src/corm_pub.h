@@ -123,6 +123,8 @@ extern corm_query_t*corm_query_op(corm_query_t*q,corm_query_op_t op);
 extern corm_query_t*corm_query_select(corm_query_t*q,const char*columns);
 extern corm_query_t*corm_query_where(corm_query_t*q,const char*condition,...);
 extern corm_query_t*corm_query_or_where(corm_query_t*q,const char*condition,...);
+extern corm_query_t*corm_query_where_null(corm_query_t *q, const char *field);
+extern corm_query_t*corm_query_where_not_null(corm_query_t *q, const char *field);
 extern corm_query_t*corm_query_join(corm_query_t*q,const char*join_clause);
 extern corm_query_t*corm_query_order(corm_query_t*q,const char*order);
 extern corm_query_t*corm_query_group(corm_query_t*q,const char*group);

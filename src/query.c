@@ -83,6 +83,22 @@ corm_query_t *corm_query_or_where(corm_query_t *q, const char *condition, ...) {
     return q;
 }
 
+corm_query_t *corm_query_where_null(corm_query_t *q, const char *field) {
+    if (!q || !field) return q;
+    if (q->where.len > 0) corm_strbuf_append(&q->where, " AND ");
+    corm_strbuf_append(&q->where, field);
+    corm_strbuf_append(&q->where, " IS NULL");
+    return q;
+}
+
+corm_query_t *corm_query_where_not_null(corm_query_t *q, const char *field) {
+    if (!q || !field) return q;
+    if (q->where.len > 0) corm_strbuf_append(&q->where, " AND ");
+    corm_strbuf_append(&q->where, field);
+    corm_strbuf_append(&q->where, " IS NOT NULL");
+    return q;
+}
+
 corm_query_t *corm_query_join(corm_query_t *q, const char *join_clause) {
     corm_strbuf_append(&q->joins, join_clause);
     return q;
@@ -209,6 +225,11 @@ corm_err_t corm_first(corm_query_t *q, void *record) {
 }
 
 corm_err_t corm_create(corm_query_t *q, void *record, int64_t *insert_id) {
+    if (q && q->model && q->model->before_create) {
+        corm_err_t hook_err = q->model->before_create(q->db, record);
+        if (hook_err != CORM_OK) return hook_err;
+    }
+
     corm_strbuf_t sql;
     corm_strbuf_init(&sql);
     q->op = CORM_OP_INSERT;
@@ -227,8 +248,12 @@ corm_err_t corm_create(corm_query_t *q, void *record, int64_t *insert_id) {
                                q->params, q->param_count);
     corm_strbuf_free(&sql);
 
-    if (err == CORM_OK && insert_id)
-        *insert_id = q->db->backend->last_insert_id(q->db);
+    if (err == CORM_OK) {
+        if (insert_id) *insert_id = q->db->backend->last_insert_id(q->db);
+        if (q && q->model && q->model->after_create) {
+            q->model->after_create(q->db, record);
+        }
+    }
 
     return err;
 }

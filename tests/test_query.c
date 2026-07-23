@@ -310,6 +310,17 @@ static void test_batch_insert(void) {
     PASS();
 }
 
+static void test_advanced_where(void) {
+    TEST("corm_query_where_null appends IS NULL clause");
+    corm_query_t q;
+    memset(&q, 0, sizeof(q));
+    corm_strbuf_init(&q.where);
+    corm_query_where_null(&q, "deleted_at");
+    assert(strstr(corm_strbuf_cstr(&q.where), "deleted_at IS NULL") != NULL);
+    corm_strbuf_free(&q.where);
+    PASS();
+}
+
 int main(void) {
     printf("CORM Query Builder Tests\n");
     printf("════════════════════════\n\n");
@@ -324,6 +335,7 @@ int main(void) {
     test_build_delete();
     test_dialect();
     test_batch_insert();
+    test_advanced_where();
 
     printf("\nResults: %d passed, %d failed\n", tests_passed, tests_failed);
     return tests_failed > 0 ? 1 : 0;
