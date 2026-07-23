@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  build-and-test:
+    name: ${{ matrix.config.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        config:
+          - { name: "gcc (Release)",       cc: gcc,   build_type: Release, asan: OFF }
+          - { name: "clang (Release)",     cc: clang, build_type: Release, asan: OFF }
+          - { name: "gcc (Debug + ASAN)",  cc: gcc,   build_type: Debug,   asan: ON  }
+          - { name: "clang (Debug + ASAN)",cc: clang, build_type: Debug,   asan: ON  }
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libsqlite3-dev
+
+      - name: Configure CMake
+        run: >
+          cmake -B build
+          -DCMAKE_C_COMPILER=${{ matrix.config.cc }}
+          -DCMAKE_BUILD_TYPE=${{ matrix.config.build_type }}
+          -DCORM_WITH_SQLITE3=ON
+          -DCORM_WITH_MYSQL=OFF
+          -DCORM_WITH_POSTGRES=OFF
+          -DCORM_BUILD_TESTS=ON
+          -DCORM_BUILD_EXAMPLES=ON
+          -DCORM_ENABLE_ASAN=${{ matrix.config.asan }}
+
+      - name: Build
+        run: cmake --build build --parallel $(nproc)
+
+      - name: Run tests
+        working-directory: build
+        run: ctest --output-on-failure --timeout 30
+
+  lint:
+    name: Format check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check formatting with clang-format
+        uses: jidicula/clang-format-action@v4.14.0
+        with:
+          clang-format-version: '19'
+          exclude-regex: '(build/|\.codegraph/)'
+          fallback-style: 'LLVM'
