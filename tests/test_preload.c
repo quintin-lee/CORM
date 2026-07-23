@@ -2,6 +2,11 @@
 #include <assert.h>
 #include <stdio.h>
 
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
+
 typedef struct {
   int id;
   char title[64];
@@ -72,6 +77,10 @@ void test_relation_preload(void) {
   corm_close(db);
   printf("test_relation_preload PASSED\n");
 }
+
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
 
 int main(void) {
   test_relation_preload();

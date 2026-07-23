@@ -58,7 +58,8 @@ extern corm_query_t *corm_query_set(corm_query_t *q, const char *field,
                                     corm_value_t val);
 extern corm_query_t *corm_query_set_raw(corm_query_t *q, const char *clause);
 extern corm_query_t *corm_query_preload(corm_query_t *q,
-                                        const char *relation_name);
+                                        const char *relation_name)
+    __attribute__((deprecated("preload is not implemented; will be removed")));
 extern corm_err_t corm_find(corm_query_t *q, corm_result_t **out);
 extern corm_err_t corm_first(corm_query_t *q, void *record);
 extern corm_err_t corm_create(corm_query_t *q, void *record,

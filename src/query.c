@@ -232,9 +232,7 @@ corm_query_t *corm_query_unscoped(corm_query_t *q) {
 }
 
 corm_query_t *corm_query_preload(corm_query_t *q, const char *relation_name) {
-  if (!q || !relation_name)
-    return q;
-  /* TODO: Preload/ eager-loading not yet implemented — this is a no-op */
+  (void)relation_name;
   return q;
 }
 
