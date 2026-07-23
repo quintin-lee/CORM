@@ -111,6 +111,37 @@ if(CORM_EXTRA_LIBS)
     target_link_libraries(corm PUBLIC ${CORM_EXTRA_LIBS})
 endif()
 
+# ── Formatting ──
+find_program(CLANG_FORMAT clang-format)
+if(CLANG_FORMAT)
+    file(GLOB_RECURSE CORM_FORMAT_SOURCES
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/*.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/*.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/corm/*.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/*.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/examples/*.c
+    )
+
+    add_custom_target(format
+        COMMAND ${CLANG_FORMAT} -i --style=file ${CORM_FORMAT_SOURCES}
+        COMMENT "Formatting all source files with clang-format"
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+
+    add_custom_target(check-format
+        COMMAND ${CLANG_FORMAT} --dry-run -Werror --style=file ${CORM_FORMAT_SOURCES}
+        COMMENT "Checking source file formatting with clang-format"
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+else()
+    add_custom_target(format
+        COMMAND ${CMAKE_COMMAND} -E echo "clang-format not found -- skipping"
+    )
+    add_custom_target(check-format
+        COMMAND ${CMAKE_COMMAND} -E echo "clang-format not found -- skipping"
+    )
+endif()
+
 # ── Tests ──
 if(CORM_BUILD_TESTS)
     enable_testing()
