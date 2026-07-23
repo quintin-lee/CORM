@@ -152,3 +152,7 @@ if(CORM_BUILD_EXAMPLES)
     add_executable(basic examples/basic.c)
     target_link_libraries(basic corm ${CORM_EXTRA_LIBS})
 endif()
+
+# ── Installation ──
+install(TARGETS corm DESTINATION lib)
+install(DIRECTORY include/corm DESTINATION include)
