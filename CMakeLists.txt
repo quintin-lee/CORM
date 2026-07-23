@@ -182,5 +182,21 @@ if(CORM_BUILD_EXAMPLES)
 endif()
 
 # ── Installation ──
-install(TARGETS corm DESTINATION lib)
+include(CMakePackageConfigHelpers)
+
+configure_file(corm.pc.in corm.pc @ONLY)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/corm.pc DESTINATION lib/pkgconfig)
+
+install(TARGETS corm EXPORT cormTargets DESTINATION lib)
 install(DIRECTORY include/corm DESTINATION include)
+
+install(EXPORT cormTargets
+    FILE cormTargets.cmake
+    DESTINATION lib/cmake/corm
+)
+
+configure_package_config_file(cormConfig.cmake.in
+    ${CMAKE_CURRENT_BINARY_DIR}/cormConfig.cmake
+    INSTALL_DESTINATION lib/cmake/corm
+)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/cormConfig.cmake DESTINATION lib/cmake/corm)
