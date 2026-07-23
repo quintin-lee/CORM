@@ -137,7 +137,9 @@ corm_query_t *corm_query_set(corm_query_t *q, const char *field, corm_value_t va
     corm_strbuf_append(&q->set_clause, field);
     corm_strbuf_append(&q->set_clause, qchar);
     corm_strbuf_append(&q->set_clause, " = ");
-    corm_strbuf_append(&q->set_clause, corm_dialect_placeholder(q->db->backend->type, q->param_count));
+    char ph_buf[16];
+    corm_dialect_placeholder_str(q->db->backend->type, q->param_count, ph_buf, sizeof(ph_buf));
+    corm_strbuf_append(&q->set_clause, ph_buf);
     corm_query_bind(q, val);
     q->op = CORM_OP_UPDATE;
     return q;

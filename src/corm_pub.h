@@ -140,7 +140,7 @@ extern corm_err_t corm_create_one(corm_t*db,corm_model_t*model,void*record,int64
 extern const char *corm_dialect_if_not_exists(corm_backend_type_t backend);
 extern const char *corm_dialect_quote(corm_backend_type_t backend, const char *name);
 extern const char *corm_dialect_autoinc(corm_backend_type_t backend);
-extern const char *corm_dialect_type_name(corm_backend_type_t backend, corm_field_type_t type, size_t size);
-extern const char *corm_dialect_placeholder(corm_backend_type_t backend, int index);
+extern void corm_dialect_type_name_str(corm_backend_type_t backend, corm_field_type_t type, size_t size, char *buf, size_t bufsz);
+extern void corm_dialect_placeholder_str(corm_backend_type_t backend, int index, char *buf, size_t bufsz);
 extern corm_err_t corm_build_sql(corm_query_t *q, corm_strbuf_t *sql, corm_backend_type_t bt);
 #endif

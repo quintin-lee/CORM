@@ -30,8 +30,9 @@ static corm_err_t create_table(corm_t *db, corm_backend_type_t backend,
             corm_strbuf_appendf(&sql, " %s", corm_dialect_autoinc(backend));
             continue; /* autoinc dialect already defines the full column */
         } else {
-            corm_strbuf_appendf(&sql, " %s",
-                corm_dialect_type_name(backend, f->type, f->size));
+            char type_buf[64];
+            corm_dialect_type_name_str(backend, f->type, f->size, type_buf, sizeof(type_buf));
+            corm_strbuf_appendf(&sql, " %s", type_buf);
         }
 
         /* Constraints */

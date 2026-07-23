@@ -274,12 +274,16 @@ static void test_build_update_pg(void) {
 
 static void test_dialect(void) {
     TEST("SQLite dialect uses ? placeholder");
-    assert(strcmp(corm_dialect_placeholder(CORM_BACKEND_SQLITE, 0), "?") == 0);
+    char buf[16];
+    corm_dialect_placeholder_str(CORM_BACKEND_SQLITE, 0, buf, sizeof(buf));
+    assert(strcmp(buf, "?") == 0);
     PASS();
 
     TEST("Postgres dialect uses $1 placeholder");
-    assert(strcmp(corm_dialect_placeholder(CORM_BACKEND_POSTGRES, 0), "$1") == 0);
-    assert(strcmp(corm_dialect_placeholder(CORM_BACKEND_POSTGRES, 1), "$2") == 0);
+    corm_dialect_placeholder_str(CORM_BACKEND_POSTGRES, 0, buf, sizeof(buf));
+    assert(strcmp(buf, "$1") == 0);
+    corm_dialect_placeholder_str(CORM_BACKEND_POSTGRES, 1, buf, sizeof(buf));
+    assert(strcmp(buf, "$2") == 0);
     PASS();
 }
 

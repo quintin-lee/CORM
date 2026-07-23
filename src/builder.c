@@ -58,11 +58,13 @@ corm_err_t corm_build_sql(corm_query_t *q, corm_strbuf_t *sql, corm_backend_type
                 count++;
             }
             corm_strbuf_append(sql, ") VALUES (");
+            char ph_buf[16];
             for (int i = 0, j = 0; i < q->model->field_count; i++) {
                 corm_field_t *f = &q->model->fields[i];
                 if (f->flags & CORM_FLAG_AUTOINC) continue;
                 if (j > 0) corm_strbuf_append(sql, ", ");
-                corm_strbuf_append(sql, corm_dialect_placeholder(bt, j));
+                corm_dialect_placeholder_str(bt, j, ph_buf, sizeof(ph_buf));
+                corm_strbuf_append(sql, ph_buf);
                 j++;
             }
             corm_strbuf_append(sql, ")");
@@ -75,11 +77,13 @@ corm_err_t corm_build_sql(corm_query_t *q, corm_strbuf_t *sql, corm_backend_type
             if (q->set_clause.len > 0) {
                 const char *src = corm_strbuf_cstr(&q->set_clause);
                 int pi = 0;
+                char ph_buf[16];
                 while (*src) {
                     const char *qm = strchr(src, '?');
                     if (qm) {
                         corm_strbuf_appendn(sql, src, (size_t)(qm - src));
-                        corm_strbuf_append(sql, corm_dialect_placeholder(bt, pi++));
+                        corm_dialect_placeholder_str(bt, pi++, ph_buf, sizeof(ph_buf));
+                        corm_strbuf_append(sql, ph_buf);
                         src = qm + 1;
                     } else {
                         corm_strbuf_append(sql, src);
@@ -89,13 +93,15 @@ corm_err_t corm_build_sql(corm_query_t *q, corm_strbuf_t *sql, corm_backend_type
             } else {
                 /* SET all non-PK fields */
                 int count = 0;
+                char ph_buf[16];
                 for (int i = 0; i < q->model->field_count; i++) {
                     corm_field_t *f = &q->model->fields[i];
                     if (f->flags & CORM_FLAG_PRIMARY) continue;
                     if (count > 0) corm_strbuf_append(sql, ", ");
                     qident(sql, bt, f->name);
                     corm_strbuf_append(sql, " = ");
-                    corm_strbuf_append(sql, corm_dialect_placeholder(bt, count));
+                    corm_dialect_placeholder_str(bt, count, ph_buf, sizeof(ph_buf));
+                    corm_strbuf_append(sql, ph_buf);
                     count++;
                 }
             }
