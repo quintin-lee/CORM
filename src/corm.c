@@ -97,10 +97,10 @@ corm_err_t corm_open_with_config(const char *dsn, corm_config_t config,
 corm_err_t corm_close(corm_t *db) {
   if (!db)
     return CORM_ERR_NULL;
+  corm_stmt_cache_destroy(db->stmt_cache);
   if (db->backend && db->conn) {
     db->backend->close(db);
   }
-  corm_stmt_cache_destroy(db->stmt_cache);
   db->stmt_cache = NULL;
   corm_model_registry_free(&db->registry);
   free(db);
