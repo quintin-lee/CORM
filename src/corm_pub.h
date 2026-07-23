@@ -115,6 +115,7 @@ extern bool corm_result_bool(corm_result_t*r,int row,int col);
 extern bool corm_result_is_null(corm_result_t*r,int row,int col);
 extern corm_query_t*corm_query_new(corm_t*db,corm_model_t*model);
 extern void corm_query_free(corm_query_t*q);
+extern void corm_query_reset(corm_query_t*q);
 extern corm_query_t*corm_query_op(corm_query_t*q,corm_query_op_t op);
 extern corm_query_t*corm_query_select(corm_query_t*q,const char*columns);
 extern corm_query_t*corm_query_where(corm_query_t*q,const char*condition,...);
@@ -141,6 +142,5 @@ extern const char *corm_dialect_quote(corm_backend_type_t backend, const char *n
 extern const char *corm_dialect_autoinc(corm_backend_type_t backend);
 extern const char *corm_dialect_type_name(corm_backend_type_t backend, corm_field_type_t type, size_t size);
 extern const char *corm_dialect_placeholder(corm_backend_type_t backend, int index);
-extern const char *corm_dialect_limit_offset(corm_backend_type_t backend);
 extern corm_err_t corm_build_sql(corm_query_t *q, corm_strbuf_t *sql, corm_backend_type_t bt);
 #endif

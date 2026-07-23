@@ -38,6 +38,21 @@ void corm_query_free(corm_query_t *q) {
     free(q);
 }
 
+void corm_query_reset(corm_query_t *q) {
+    if (!q) return;
+    q->op = CORM_OP_SELECT;
+    q->limit = 0;
+    q->offset = 0;
+    q->param_count = 0;
+    corm_strbuf_clear(&q->select_cols);
+    corm_strbuf_clear(&q->where);
+    corm_strbuf_clear(&q->order);
+    corm_strbuf_clear(&q->group);
+    corm_strbuf_clear(&q->having);
+    corm_strbuf_clear(&q->joins);
+    corm_strbuf_clear(&q->set_clause);
+}
+
 corm_query_t *corm_query_op(corm_query_t *q, corm_query_op_t op) {
     q->op = op;
     return q;
