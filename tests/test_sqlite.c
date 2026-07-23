@@ -22,38 +22,6 @@ static int tests_failed = 0;
     tests_failed++;                                                            \
   } while (0)
 
-/* Test model */
-typedef struct {
-  int id;
-  char name[256];
-  int age;
-} test_user_t;
-
-static corm_field_t test_user_fields[] = {
-    {.name = "id",
-     .type = CORM_INT,
-     .offset = offsetof(test_user_t, id),
-     .size = sizeof(int),
-     .flags = CORM_FLAG_PRIMARY | CORM_FLAG_AUTOINC},
-    {.name = "name",
-     .type = CORM_STRING,
-     .offset = offsetof(test_user_t, name),
-     .size = 256,
-     .flags = CORM_FLAG_NOT_NULL},
-    {.name = "age",
-     .type = CORM_INT,
-     .offset = offsetof(test_user_t, age),
-     .size = sizeof(int)},
-};
-
-static corm_model_t test_user_model = {
-    .table_name = "test_users",
-    .struct_size = sizeof(test_user_t),
-    .fields = test_user_fields,
-    .field_count = 3,
-    .primary_key = &test_user_fields[0],
-};
-
 /* ── SQLite integration tests ── */
 
 static void test_sqlite_open_close(void) {

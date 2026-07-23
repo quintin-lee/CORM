@@ -4,6 +4,32 @@
 
 /* ── Query builder ── */
 
+static void corm_param_deep_copy(corm_value_t *val) {
+  if (val->type == CORM_TEXT || val->type == CORM_STRING) {
+    if (val->v.s)
+      val->v.s = strdup(val->v.s);
+  } else if (val->type == CORM_BLOB) {
+    if (val->v.blob.data && val->v.blob.len > 0) {
+      void *copy = malloc(val->v.blob.len);
+      if (copy) {
+        memcpy(copy, val->v.blob.data, val->v.blob.len);
+        val->v.blob.data = copy;
+      }
+    }
+  }
+}
+
+static void corm_param_free(corm_value_t *val) {
+  if ((val->type == CORM_TEXT || val->type == CORM_STRING) && val->v.s) {
+    free(val->v.s);
+    val->v.s = NULL;
+  }
+  if (val->type == CORM_BLOB && val->v.blob.data) {
+    free(val->v.blob.data);
+    val->v.blob.data = NULL;
+  }
+}
+
 corm_query_t *corm_query_new(corm_t *db, corm_model_t *model) {
   corm_query_t *q = (corm_query_t *)calloc(1, sizeof(corm_query_t));
   if (!q)
@@ -36,6 +62,8 @@ void corm_query_free(corm_query_t *q) {
   corm_strbuf_free(&q->having);
   corm_strbuf_free(&q->joins);
   corm_strbuf_free(&q->set_clause);
+  for (int i = 0; i < q->param_count; i++)
+    corm_param_free(&q->params[i]);
   free(q->params);
   free(q);
 }
@@ -46,6 +74,8 @@ void corm_query_reset(corm_query_t *q) {
   q->op = CORM_OP_SELECT;
   q->limit = 0;
   q->offset = 0;
+  for (int i = 0; i < q->param_count; i++)
+    corm_param_free(&q->params[i]);
   q->param_count = 0;
   corm_strbuf_clear(&q->select_cols);
   corm_strbuf_clear(&q->where);
@@ -196,6 +226,7 @@ corm_query_t *corm_query_bind(corm_query_t *q, corm_value_t val) {
     q->params = tmp;
     q->param_cap = new_cap;
   }
+  corm_param_deep_copy(&val);
   q->params[q->param_count++] = val;
   return q;
 }
