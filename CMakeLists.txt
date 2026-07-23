@@ -168,6 +168,10 @@ if(CORM_BUILD_TESTS)
         add_executable(test_soft_delete tests/test_soft_delete.c)
         target_link_libraries(test_soft_delete corm ${CORM_EXTRA_LIBS})
         add_test(NAME test_soft_delete COMMAND test_soft_delete)
+
+        add_executable(test_logger tests/test_logger.c)
+        target_link_libraries(test_logger corm ${CORM_EXTRA_LIBS})
+        add_test(NAME test_logger COMMAND test_logger)
     endif()
 endif()
 

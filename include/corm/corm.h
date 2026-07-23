@@ -18,6 +18,7 @@ extern corm_err_t corm_open_with_config(const char *dsn, corm_config_t config,
                                         corm_t **out);
 extern corm_err_t corm_close(corm_t *db);
 extern corm_err_t corm_ping(corm_t *db);
+extern void corm_set_logger(corm_t *db, corm_logger_fn logger, void *user_data);
 extern corm_err_t corm_begin(corm_t *db);
 extern corm_err_t corm_commit(corm_t *db);
 extern corm_err_t corm_rollback(corm_t *db);

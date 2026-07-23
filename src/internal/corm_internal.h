@@ -12,5 +12,6 @@ struct corm{
     corm_backend_t*backend;void*conn;corm_config_t config;corm_registry_t registry;
     corm_err_t last_err;char err_msg[512];char err_sql[1024];
     int64_t last_insert_id_val;int rows_affected_val;
+    corm_logger_fn logger;void *logger_user_data;
 };
 #endif
