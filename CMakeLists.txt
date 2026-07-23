@@ -156,6 +156,10 @@ if(CORM_BUILD_TESTS)
         add_executable(test_predicates tests/test_predicates.c)
         target_link_libraries(test_predicates corm ${CORM_EXTRA_LIBS})
         add_test(NAME test_predicates COMMAND test_predicates)
+
+        add_executable(test_preload tests/test_preload.c)
+        target_link_libraries(test_preload corm ${CORM_EXTRA_LIBS})
+        add_test(NAME test_preload COMMAND test_preload)
     endif()
 endif()
 
