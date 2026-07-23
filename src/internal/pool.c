@@ -10,7 +10,7 @@ corm_err_t corm_pool_create(const char *dsn, corm_config_t config,
   if (!pool)
     return CORM_ERR_NOMEM;
 
-  strncpy(pool->dsn, dsn, sizeof(pool->dsn) - 1);
+  snprintf(pool->dsn, sizeof(pool->dsn), "%s", dsn);
   pool->config = config;
   pthread_mutex_init(&pool->lock, NULL);
   pthread_cond_init(&pool->cond, NULL);
