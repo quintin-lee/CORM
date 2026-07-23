@@ -136,6 +136,10 @@ if(CORM_BUILD_TESTS)
         add_executable(test_hooks tests/test_hooks.c)
         target_link_libraries(test_hooks corm ${CORM_EXTRA_LIBS})
         add_test(NAME test_hooks COMMAND test_hooks)
+
+        add_executable(test_full_hooks tests/test_full_hooks.c)
+        target_link_libraries(test_full_hooks corm ${CORM_EXTRA_LIBS})
+        add_test(NAME test_full_hooks COMMAND test_full_hooks)
     endif()
 endif()
 

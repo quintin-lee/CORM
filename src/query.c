@@ -220,6 +220,10 @@ corm_err_t corm_first(corm_query_t *q, void *record) {
         }
     }
 
+    if (q && q->model && q->model->after_find) {
+        q->model->after_find(q->db, record);
+    }
+
     corm_result_release(res);
     return CORM_OK;
 }
@@ -259,6 +263,11 @@ corm_err_t corm_create(corm_query_t *q, void *record, int64_t *insert_id) {
 }
 
 corm_err_t corm_update(corm_query_t *q, int *affected) {
+    if (q && q->model && q->model->before_update) {
+        corm_err_t hook_err = q->model->before_update(q->db, NULL);
+        if (hook_err != CORM_OK) return hook_err;
+    }
+
     corm_strbuf_t sql;
     corm_strbuf_init(&sql);
     q->op = CORM_OP_UPDATE;
@@ -269,13 +278,22 @@ corm_err_t corm_update(corm_query_t *q, int *affected) {
                                q->params, q->param_count);
     corm_strbuf_free(&sql);
 
-    if (err == CORM_OK && affected)
-        *affected = q->db->backend->rows_affected(q->db);
+    if (err == CORM_OK) {
+        if (affected) *affected = q->db->backend->rows_affected(q->db);
+        if (q && q->model && q->model->after_update) {
+            q->model->after_update(q->db, NULL);
+        }
+    }
 
     return err;
 }
 
 corm_err_t corm_delete(corm_query_t *q, int *affected) {
+    if (q && q->model && q->model->before_delete) {
+        corm_err_t hook_err = q->model->before_delete(q->db, NULL);
+        if (hook_err != CORM_OK) return hook_err;
+    }
+
     corm_strbuf_t sql;
     corm_strbuf_init(&sql);
     q->op = CORM_OP_DELETE;
@@ -286,8 +304,12 @@ corm_err_t corm_delete(corm_query_t *q, int *affected) {
                                q->params, q->param_count);
     corm_strbuf_free(&sql);
 
-    if (err == CORM_OK && affected)
-        *affected = q->db->backend->rows_affected(q->db);
+    if (err == CORM_OK) {
+        if (affected) *affected = q->db->backend->rows_affected(q->db);
+        if (q && q->model && q->model->after_delete) {
+            q->model->after_delete(q->db, NULL);
+        }
+    }
 
     return err;
 }
@@ -318,6 +340,9 @@ corm_err_t corm_find_all(corm_t *db, corm_model_t *model,
                         break;
                     }
                 }
+            }
+            if (model && model->after_find) {
+                model->after_find(db, ptr);
             }
             ptr += model->struct_size;
         }
