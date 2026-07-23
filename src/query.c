@@ -99,6 +99,46 @@ corm_query_t *corm_query_where_not_null(corm_query_t *q, const char *field) {
     return q;
 }
 
+corm_query_t *corm_query_where_in(corm_query_t *q, const char *field, corm_value_t *vals, int count) {
+    if (!q || !field || !vals || count <= 0) return q;
+    if (q->where.len > 0) corm_strbuf_append(&q->where, " AND ");
+    corm_strbuf_append(&q->where, field);
+    corm_strbuf_append(&q->where, " IN (");
+
+    corm_backend_type_t bt = q->db ? q->db->backend->type : CORM_BACKEND_SQLITE;
+    for (int i = 0; i < count; i++) {
+        if (i > 0) corm_strbuf_append(&q->where, ", ");
+        char ph_buf[16];
+        corm_dialect_placeholder_str(bt, q->param_count, ph_buf, sizeof(ph_buf));
+        corm_strbuf_append(&q->where, ph_buf);
+        corm_query_bind(q, vals[i]);
+    }
+    corm_strbuf_append(&q->where, ")");
+    return q;
+}
+
+corm_query_t *corm_query_where_between(corm_query_t *q, const char *field, corm_value_t min_val, corm_value_t max_val) {
+    if (!q || !field) return q;
+    if (q->where.len > 0) corm_strbuf_append(&q->where, " AND ");
+    corm_strbuf_append(&q->where, field);
+    corm_strbuf_append(&q->where, " BETWEEN ");
+
+    corm_backend_type_t bt = q->db ? q->db->backend->type : CORM_BACKEND_SQLITE;
+
+    char ph1[16], ph2[16];
+    corm_dialect_placeholder_str(bt, q->param_count, ph1, sizeof(ph1));
+    corm_strbuf_append(&q->where, ph1);
+    corm_query_bind(q, min_val);
+
+    corm_strbuf_append(&q->where, " AND ");
+
+    corm_dialect_placeholder_str(bt, q->param_count, ph2, sizeof(ph2));
+    corm_strbuf_append(&q->where, ph2);
+    corm_query_bind(q, max_val);
+
+    return q;
+}
+
 corm_query_t *corm_query_join(corm_query_t *q, const char *join_clause) {
     corm_strbuf_append(&q->joins, join_clause);
     return q;
