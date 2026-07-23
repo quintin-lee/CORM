@@ -507,3 +507,148 @@ corm_err_t corm_create_batch(corm_t *db, corm_model_t *model, void *records,
     *inserted_count = total_inserted;
   return CORM_OK;
 }
+
+corm_err_t corm_update_batch(corm_t *db, corm_model_t *model, void *records,
+                              int count, int *affected_count) {
+  if (!db || !model || !records || count <= 0)
+    return CORM_ERR_NULL;
+
+  uint8_t *bytes = (uint8_t *)records;
+  int total_affected = 0;
+  corm_err_t global_err = CORM_OK;
+
+  corm_begin(db);
+  for (int i = 0; i < count; i++) {
+    void *rec = bytes + i * model->struct_size;
+    corm_query_t *q = corm_query_new(db, model);
+    if (!q) {
+      corm_rollback(db);
+      if (affected_count)
+        *affected_count = total_affected;
+      return CORM_ERR_NOMEM;
+    }
+
+    int pk_field = -1;
+    for (int j = 0; j < model->field_count; j++) {
+      corm_field_t *f = &model->fields[j];
+      if (f->flags & CORM_FLAG_PRIMARY) {
+        pk_field = j;
+        continue;
+      }
+      corm_value_t val = corm_field_get_value(rec, f);
+      corm_query_set(q, f->name, val);
+    }
+
+    if (pk_field >= 0) {
+      corm_field_t *pk = &model->fields[pk_field];
+      corm_strbuf_t where;
+      corm_strbuf_init(&where);
+      corm_strbuf_appendf(&where, "%s = ?", pk->name);
+      corm_query_where(q, corm_strbuf_cstr(&where));
+      corm_strbuf_free(&where);
+      corm_value_t pk_val = corm_field_get_value(rec, pk);
+      corm_query_bind(q, pk_val);
+    }
+
+    int aff = 0;
+    corm_err_t err = corm_update(q, &aff);
+    total_affected += aff;
+    corm_query_free(q);
+
+    if (err != CORM_OK) {
+      global_err = err;
+      break;
+    }
+  }
+
+  if (global_err != CORM_OK)
+    corm_rollback(db);
+  else
+    corm_commit(db);
+
+  if (affected_count)
+    *affected_count = total_affected;
+  return global_err;
+}
+
+corm_err_t corm_delete_batch(corm_t *db, corm_model_t *model, void *records,
+                              int count, int *affected_count) {
+  if (!db || !model || !records || count <= 0)
+    return CORM_ERR_NULL;
+
+  uint8_t *bytes = (uint8_t *)records;
+  int total_affected = 0;
+  corm_err_t global_err = CORM_OK;
+
+  corm_begin(db);
+  for (int i = 0; i < count; i++) {
+    void *rec = bytes + i * model->struct_size;
+    corm_query_t *q = corm_query_new(db, model);
+    if (!q) {
+      corm_rollback(db);
+      if (affected_count)
+        *affected_count = total_affected;
+      return CORM_ERR_NOMEM;
+    }
+
+    int has_soft_delete = 0;
+    for (int j = 0; j < model->field_count; j++) {
+      if (model->fields[j].flags & CORM_FLAG_SOFT_DELETE) {
+        has_soft_delete = 1;
+        break;
+      }
+    }
+
+    if (has_soft_delete) {
+      for (int j = 0; j < model->field_count; j++) {
+        if (model->fields[j].flags & CORM_FLAG_SOFT_DELETE) {
+          corm_value_t ts = {.type = CORM_STRING, .is_null = false,
+                             .v.s = "deleted"};
+          corm_query_set(q, model->fields[j].name, ts);
+          break;
+        }
+      }
+    }
+
+    int pk_field = -1;
+    for (int j = 0; j < model->field_count; j++) {
+      if (model->fields[j].flags & CORM_FLAG_PRIMARY) {
+        pk_field = j;
+        break;
+      }
+    }
+    if (pk_field >= 0) {
+      corm_field_t *pk = &model->fields[pk_field];
+      corm_strbuf_t where;
+      corm_strbuf_init(&where);
+      corm_strbuf_appendf(&where, "%s = ?", pk->name);
+      corm_query_where(q, corm_strbuf_cstr(&where));
+      corm_strbuf_free(&where);
+      corm_value_t pk_val = corm_field_get_value(rec, pk);
+      corm_query_bind(q, pk_val);
+    }
+
+    int aff = 0;
+    corm_err_t err;
+    if (has_soft_delete)
+      err = corm_update(q, &aff);
+    else
+      err = corm_delete(q, &aff);
+    total_affected += aff;
+    corm_query_free(q);
+
+    if (err != CORM_OK) {
+      global_err = err;
+      break;
+    }
+  }
+
+  if (global_err != CORM_OK)
+    corm_rollback(db);
+  else
+    corm_commit(db);
+
+  if (affected_count)
+    *affected_count = total_affected;
+  return global_err;
+}

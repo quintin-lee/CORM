@@ -49,6 +49,12 @@ extern corm_err_t corm_create_one(corm_t *db, corm_model_t *model, void *record,
 extern corm_err_t corm_create_batch(corm_t *db, corm_model_t *model,
                                     void *records, int count, int batch_size,
                                     int *inserted_count);
+extern corm_err_t corm_update_batch(corm_t *db, corm_model_t *model,
+                                    void *records, int count,
+                                    int *affected_count);
+extern corm_err_t corm_delete_batch(corm_t *db, corm_model_t *model,
+                                    void *records, int count,
+                                    int *affected_count);
 
 /* ── Dialect API ── */
 extern const char *corm_dialect_if_not_exists(corm_backend_type_t backend);
