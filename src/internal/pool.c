@@ -56,7 +56,15 @@ corm_err_t corm_pool_acquire(corm_pool_t *pool, corm_t **out_db) {
     // Ping check on idle connection
     if (corm_ping(db) != CORM_OK) {
       corm_close(db);
-      corm_err_t err = corm_open_with_config(pool->dsn, pool->config, &db);
+      corm_err_t err;
+      int retried = 0;
+      do {
+        err = corm_open_with_config(pool->dsn, pool->config, &db);
+        if (err == CORM_OK)
+          break;
+        struct timespec ts = {.tv_sec = 0, .tv_nsec = 100000000};
+        nanosleep(&ts, NULL);
+      } while (++retried < 3);
       if (err != CORM_OK) {
         pool->current_open--;
         pthread_mutex_unlock(&pool->lock);
@@ -70,7 +78,15 @@ corm_err_t corm_pool_acquire(corm_pool_t *pool, corm_t **out_db) {
   }
 
   corm_t *db = NULL;
-  corm_err_t err = corm_open_with_config(pool->dsn, pool->config, &db);
+  corm_err_t err;
+  int retried = 0;
+  do {
+    err = corm_open_with_config(pool->dsn, pool->config, &db);
+    if (err == CORM_OK)
+      break;
+    struct timespec ts = {.tv_sec = 0, .tv_nsec = 100000000};
+    nanosleep(&ts, NULL);
+  } while (++retried < 3);
   if (err == CORM_OK) {
     pool->current_open++;
     *out_db = db;
