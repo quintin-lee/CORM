@@ -57,7 +57,53 @@ void test_incremental_migration(void) {
   printf("test_incremental_migration PASSED\n");
 }
 
+typedef struct {
+  int id;
+  char group[64];
+} ReservedModel;
+
+static corm_field_t reserved_fields[] = {
+    CORM_FIELD(ReservedModel, id, CORM_INT, CORM_FLAG_PRIMARY, NULL),
+    CORM_FIELD(ReservedModel, group, CORM_STRING, 0, NULL),
+};
+
+static corm_model_t reserved_model = {
+    .table_name = "reserved_test",
+    .struct_size = sizeof(ReservedModel),
+    .fields = reserved_fields,
+    .field_count = 2,
+    .primary_key = &reserved_fields[0],
+};
+
+void test_alter_table_with_reserved_word(void) {
+  corm_t *db;
+  corm_err_t err = corm_open("sqlite3://:memory:", &db);
+  if (err != CORM_OK) {
+    printf("SKIP (no sqlite3 backend)\n");
+    return;
+  }
+
+  /* Create table with just the PK, then auto_migrate attempts ADD COLUMN "group".
+   * Without identifier quoting, 'group' is a reserved word and SQLite rejects it. */
+  corm_exec(db, "CREATE TABLE IF NOT EXISTS reserved_test ("
+                "id INTEGER PRIMARY KEY AUTOINCREMENT)");
+
+  corm_model_t *models[] = {&reserved_model};
+  err = corm_auto_migrate(db, models, 1);
+  assert(err == CORM_OK);
+
+  /* Verify the column was actually added */
+  corm_result_t *res = NULL;
+  corm_raw(db, "SELECT group FROM reserved_test WHERE id = 1", &res);
+  if (res)
+    corm_result_release(res);
+
+  corm_close(db);
+  printf("test_alter_table_with_reserved_word PASSED\n");
+}
+
 int main(void) {
   test_incremental_migration();
+  test_alter_table_with_reserved_word();
   return 0;
 }
