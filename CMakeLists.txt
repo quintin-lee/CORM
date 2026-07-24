@@ -223,6 +223,8 @@ endif()
 if(CORM_BUILD_EXAMPLES)
     add_executable(basic examples/basic.c)
     target_link_libraries(basic corm ${CORM_EXTRA_LIBS})
+    add_executable(mysql_example examples/mysql_example.c)
+    target_link_libraries(mysql_example corm ${CORM_EXTRA_LIBS})
 endif()
 
 # ── Installation ──
