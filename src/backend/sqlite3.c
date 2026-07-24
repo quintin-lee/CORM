@@ -147,35 +147,46 @@ static corm_err_t sqlite_query(corm_t *db, const char *sql,
 
   int col_count = sqlite3_column_count(stmt);
 
-  /* Single-pass: collect rows dynamically */
+  /* Allocate row-pointer array and column types */
   int row_cap = 16;
-  int row_count = 0;
-  corm_value_t *all_rows = (corm_value_t *)calloc(
-      (size_t)row_cap * (size_t)col_count, sizeof(corm_value_t));
+  corm_value_t **rows = calloc((size_t)row_cap, sizeof(corm_value_t *));
   corm_field_type_t *col_types =
-      (corm_field_type_t *)calloc((size_t)col_count, sizeof(corm_field_type_t));
-  if (!all_rows || !col_types) {
-    free(all_rows);
+      calloc((size_t)col_count, sizeof(corm_field_type_t));
+  if (!rows || !col_types) {
+    free(rows);
     free(col_types);
     sqlite_cleanup_stmt(db, sql);
     return CORM_ERR_NOMEM;
   }
 
+  int row_count = 0;
   while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
     if (row_count >= row_cap) {
       row_cap *= 2;
-      corm_value_t *tmp = realloc(
-          all_rows, (size_t)row_cap * (size_t)col_count * sizeof(corm_value_t));
+      corm_value_t **tmp =
+          realloc(rows, (size_t)row_cap * sizeof(corm_value_t *));
       if (!tmp) {
-        free(all_rows);
+        for (int r = 0; r < row_count; r++)
+          free(rows[r]);
+        free(rows);
         free(col_types);
         sqlite_cleanup_stmt(db, sql);
         return CORM_ERR_NOMEM;
       }
-      all_rows = tmp;
+      rows = tmp;
+    }
+    /* Allocate this row's buffer (always needed, even on first insert) */
+    rows[row_count] = malloc((size_t)col_count * sizeof(corm_value_t));
+    if (!rows[row_count]) {
+      for (int r = 0; r < row_count; r++)
+        free(rows[r]);
+      free(rows);
+      free(col_types);
+      sqlite_cleanup_stmt(db, sql);
+      return CORM_ERR_NOMEM;
     }
     for (int i = 0; i < col_count; i++) {
-      corm_value_t *v = &all_rows[(size_t)row_count * (size_t)col_count + i];
+      corm_value_t *v = &rows[row_count][i];
       int stype = sqlite3_column_type(stmt, i);
       v->is_null = (stype == SQLITE_NULL);
       if (v->is_null)
@@ -206,7 +217,7 @@ static corm_err_t sqlite_query(corm_t *db, const char *sql,
         v->type = CORM_DOUBLE;
         break;
       case CORM_TEXT: {
-        const char *txt = (const char *)sqlite3_column_text(stmt, i);
+        const char *txt = sqlite3_column_text(stmt, i);
         v->v.s = txt ? strdup(txt) : NULL;
         v->type = CORM_TEXT;
         break;
@@ -229,34 +240,32 @@ static corm_err_t sqlite_query(corm_t *db, const char *sql,
   }
 
   if (rc != SQLITE_DONE) {
-    free(all_rows);
+    for (int r = 0; r < row_count; r++)
+      free(rows[r]);
+    free(rows);
     free(col_types);
     sqlite_cleanup_stmt(db, sql);
     corm_set_err_msg(db, "%s", sqlite3_errmsg(handle));
     return CORM_ERR_BACKEND;
   }
 
-  /* Build result */
-  corm_result_t *res = corm_result_new(col_count, row_count);
+  /* Build result from collected rows (no intermediate flat copy) */
+  corm_result_t *res = corm_result_new(col_count, 0);
   if (!res) {
-    free(all_rows);
+    for (int r = 0; r < row_count; r++)
+      free(rows[r]);
+    free(rows);
     free(col_types);
     sqlite_cleanup_stmt(db, sql);
     return CORM_ERR_NOMEM;
   }
-
+  res->row_count = row_count;
+  res->rows = rows;
   for (int i = 0; i < col_count; i++) {
     res->column_names[i] = strdup(sqlite3_column_name(stmt, i));
     res->column_types[i] = col_types[i];
   }
-  /* Copy flat array → 2D rows[i][j] */
-  for (int r = 0; r < row_count; r++) {
-    for (int c = 0; c < col_count; c++) {
-      res->rows[r][c] = all_rows[(size_t)r * (size_t)col_count + c];
-    }
-  }
 
-  free(all_rows);
   free(col_types);
   *out = res;
   return CORM_OK;
