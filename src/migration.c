@@ -123,31 +123,27 @@ corm_err_t corm_auto_migrate(corm_t *db, corm_model_t *models[],
           continue;
       }
 
-      char alter_sql[512];
       char type_buf[64];
       corm_dialect_type_name_str(backend, f->type, f->size, type_buf,
                                  sizeof(type_buf));
 
-      /* Propagate column constraints (NOT NULL, DEFAULT, UNIQUE) */
-      char constraints[128] = "";
-      int con_len = 0;
-      if (f->flags & CORM_FLAG_NOT_NULL)
-        con_len += snprintf(constraints + con_len,
-                            sizeof(constraints) - (size_t)con_len, " NOT NULL");
-      if (f->flags & CORM_FLAG_UNIQUE)
-        con_len += snprintf(constraints + con_len,
-                            sizeof(constraints) - (size_t)con_len, " UNIQUE");
-      if (f->default_value && f->default_value[0])
-        snprintf(constraints + con_len, sizeof(constraints) - (size_t)con_len,
-                 " DEFAULT %s", f->default_value);
-      /* FK constraints are deliberately skipped in ALTER ADD COLUMN —
-       * SQLite does not support ALTER TABLE ADD CONSTRAINT for FKs */
-
+      corm_strbuf_t alter_buf;
+      corm_strbuf_init(&alter_buf);
       const char *lq = corm_dialect_quote(backend, m->table_name);
-      snprintf(alter_sql, sizeof(alter_sql),
-               "ALTER TABLE %s%s%s ADD COLUMN %s%s%s %s%s;", lq, m->table_name,
-               lq, lq, f->name, lq, type_buf, constraints);
-      corm_exec(db, alter_sql);
+
+      corm_strbuf_appendf(&alter_buf, "ALTER TABLE %s%s%s ADD COLUMN %s%s%s %s",
+                          lq, m->table_name, lq, lq, f->name, lq, type_buf);
+
+      if (f->flags & CORM_FLAG_NOT_NULL)
+        corm_strbuf_append(&alter_buf, " NOT NULL");
+      if (f->flags & CORM_FLAG_UNIQUE)
+        corm_strbuf_append(&alter_buf, " UNIQUE");
+      if (f->default_value && f->default_value[0])
+        corm_strbuf_appendf(&alter_buf, " DEFAULT %s", f->default_value);
+
+      corm_strbuf_append(&alter_buf, ";");
+      corm_exec(db, corm_strbuf_cstr(&alter_buf));
+      corm_strbuf_free(&alter_buf);
     }
 
     corm_column_info_free(existing, existing_count);
@@ -158,14 +154,16 @@ corm_err_t corm_auto_migrate(corm_t *db, corm_model_t *models[],
       if (!(f->flags & CORM_FLAG_INDEX))
         continue;
 
-      char idx_sql[512];
+      corm_strbuf_t idx_buf;
+      corm_strbuf_init(&idx_buf);
       const char *tq = corm_dialect_quote(backend, m->table_name);
       const char *fq = corm_dialect_quote(backend, f->name);
-      snprintf(idx_sql, sizeof(idx_sql),
-               "CREATE INDEX IF NOT EXISTS %sidx_%s_%s%s ON %s%s%s(%s%s%s)", tq,
-               m->table_name, f->name, tq, tq, m->table_name, tq, fq, f->name,
-               fq);
-      corm_exec(db, idx_sql);
+      corm_strbuf_appendf(
+          &idx_buf,
+          "CREATE INDEX IF NOT EXISTS %sidx_%s_%s%s ON %s%s%s(%s%s%s)", tq,
+          m->table_name, f->name, tq, tq, m->table_name, tq, fq, f->name, fq);
+      corm_exec(db, corm_strbuf_cstr(&idx_buf));
+      corm_strbuf_free(&idx_buf);
     }
   }
 
