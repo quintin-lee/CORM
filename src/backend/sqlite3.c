@@ -176,7 +176,7 @@ static corm_err_t sqlite_query(corm_t *db, const char *sql,
       rows = tmp;
     }
     /* Allocate this row's buffer (always needed, even on first insert) */
-    rows[row_count] = malloc((size_t)col_count * sizeof(corm_value_t));
+    rows[row_count] = calloc((size_t)col_count, sizeof(corm_value_t));
     if (!rows[row_count]) {
       for (int r = 0; r < row_count; r++)
         free(rows[r]);
@@ -189,9 +189,8 @@ static corm_err_t sqlite_query(corm_t *db, const char *sql,
       corm_value_t *v = &rows[row_count][i];
       int stype = sqlite3_column_type(stmt, i);
       v->is_null = (stype == SQLITE_NULL);
-      if (v->is_null)
-        continue;
-      if (row_count == 0) {
+
+      if (stype != SQLITE_NULL && col_types[i] == 0) {
         switch (stype) {
         case SQLITE_INTEGER:
           col_types[i] = CORM_INT64;
@@ -206,30 +205,41 @@ static corm_err_t sqlite_query(corm_t *db, const char *sql,
           col_types[i] = CORM_TEXT;
           break;
         }
+      } else if (col_types[i] == 0) {
+        col_types[i] = CORM_TEXT;
       }
+
+      v->type = col_types[i];
+      if (v->is_null)
+        continue;
+
       switch (col_types[i]) {
       case CORM_INT64:
         v->v.i = sqlite3_column_int64(stmt, i);
-        v->type = CORM_INT64;
         break;
       case CORM_DOUBLE:
         v->v.f = sqlite3_column_double(stmt, i);
-        v->type = CORM_DOUBLE;
         break;
       case CORM_TEXT: {
         const char *txt = sqlite3_column_text(stmt, i);
         v->v.s = txt ? strdup(txt) : NULL;
-        v->type = CORM_TEXT;
         break;
       }
       case CORM_BLOB: {
         int n = sqlite3_column_bytes(stmt, i);
-        v->v.blob.data = malloc((size_t)n);
-        if (v->v.blob.data) {
-          memcpy(v->v.blob.data, sqlite3_column_blob(stmt, i), (size_t)n);
-          v->v.blob.len = (size_t)n;
+        if (n > 0) {
+          v->v.blob.data = malloc((size_t)n);
+          if (v->v.blob.data) {
+            const void *bdata = sqlite3_column_blob(stmt, i);
+            if (bdata) {
+              memcpy(v->v.blob.data, bdata, (size_t)n);
+            }
+            v->v.blob.len = (size_t)n;
+          }
+        } else {
+          v->v.blob.data = NULL;
+          v->v.blob.len = 0;
         }
-        v->type = CORM_BLOB;
         break;
       }
       default:

@@ -125,8 +125,8 @@ static corm_err_t pg_exec(corm_t *db, const char *sql, corm_value_t *params,
 
   if (param_count > 0) {
     /* Parameterized execution */
-    const char *const *param_values =
-        (const char *const *)malloc((size_t)param_count * sizeof(char *));
+    const char **param_values =
+        (const char **)malloc((size_t)param_count * sizeof(char *));
     int *param_lengths = (int *)malloc((size_t)param_count * sizeof(int));
     int *param_formats = (int *)malloc((size_t)param_count * sizeof(int));
     char **tmp_strs = (char **)calloc((size_t)param_count, sizeof(char *));
@@ -241,8 +241,8 @@ static corm_err_t pg_query(corm_t *db, const char *sql, corm_value_t *params,
   PGresult *pgres;
 
   if (param_count > 0) {
-    const char *const *param_values =
-        (const char *const *)malloc((size_t)param_count * sizeof(char *));
+    const char **param_values =
+        (const char **)malloc((size_t)param_count * sizeof(char *));
     int *param_lengths = (int *)malloc((size_t)param_count * sizeof(int));
     int *param_formats = (int *)malloc((size_t)param_count * sizeof(int));
     char **tmp_strs = (char **)calloc((size_t)param_count, sizeof(char *));
