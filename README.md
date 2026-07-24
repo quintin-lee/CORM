@@ -16,8 +16,9 @@ A lightweight, GORM-inspired ORM/query builder for C with multi-backend support 
 - **Result iterator**: Forward-only cursor with typed accessors and reference counting
 - **Dialect-aware**: Identifier quoting, placeholder format, type mapping, LIMIT/OFFSET per backend
 - **Pluggable logger**: Intercept all SQL execution with timing, error codes, and log levels
-- **Batch insert**: Insert multiple rows in a single SQL statement
+- **Batch operations**: Insert, update, or delete multiple records in batched transactions
 - **Static linking**: Backend registration via `__attribute__((constructor))` or explicit calls
+- **Format-at-build**: `clang-format` runs automatically on every source file before compilation
 
 ## Project Structure
 
@@ -211,6 +212,12 @@ Logger callback signature: `void (*)(void *user_data, corm_log_level_t level, co
 | `corm_update(q, &affected)` | UPDATE (returns rows affected) |
 | `corm_delete(q, &affected)` | DELETE (returns rows affected) |
 | `corm_create_batch(db, model, records, count)` | Batch INSERT |
+| `corm_update_batch(db, model, records, count, &affected)` | Batch UPDATE by primary key |
+| `corm_delete_batch(db, model, records, count, &affected)` | Batch DELETE (or soft delete) by primary key |
+
+Safety: savepoint names are restricted to `[a-zA-Z0-9_-]` to prevent SQL injection.
+
+Batch functions (`corm_create_batch`, `corm_update_batch`, `corm_delete_batch`) each process records inside a transaction, updating or deleting by primary key. `corm_delete_batch` detects `CORM_FLAG_SOFT_DELETE` and issues an UPDATE instead.
 
 ### High-Level Convenience
 
@@ -422,7 +429,7 @@ cd build
 ctest --output-on-failure
 ```
 
-14 test suites:
+15 test suites:
 
 | Suite | Type | Purpose |
 |---|---|---|
@@ -440,6 +447,7 @@ ctest --output-on-failure
 | `test_stmt_cache` | Integration | LRU prepared statement cache |
 | `test_soft_delete` | Integration | Soft delete mechanism |
 | `test_logger` | Integration | Logger callback and timing |
+| `test_corm_api` | Unit | Savepoint validation, future API-level tests |
 
 ## Build Options
 
