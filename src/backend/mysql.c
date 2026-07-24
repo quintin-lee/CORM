@@ -572,6 +572,65 @@ static int mysql_affected(corm_t *db) {
   return (int)mysql_affected_rows(handle);
 }
 
+static corm_err_t mysql_describe_table(corm_t *db, const char *table_name,
+                                       corm_column_info_t **out, int *count) {
+  MYSQL *handle = (MYSQL *)db->conn;
+  if (!handle)
+    return CORM_ERR_BACKEND;
+
+  char escaped[256];
+  mysql_real_escape_string(handle, escaped, table_name,
+                           (unsigned long)strlen(table_name));
+
+  char sql[512];
+  snprintf(sql, sizeof(sql), "SHOW COLUMNS FROM `%s`", escaped);
+
+  if (mysql_query(handle, sql) != 0) {
+    snprintf(db->err_msg, sizeof(db->err_msg), "%s", mysql_error(handle));
+    return CORM_ERR_BACKEND;
+  }
+
+  MYSQL_RES *mysql_res = mysql_store_result(handle);
+  if (!mysql_res) {
+    *out = NULL;
+    *count = 0;
+    return CORM_OK;
+  }
+
+  int n = 0, cap = 32;
+  *out = (corm_column_info_t *)calloc((size_t)cap, sizeof(corm_column_info_t));
+  if (!*out) {
+    mysql_free_result(mysql_res);
+    return CORM_ERR_NOMEM;
+  }
+
+  MYSQL_ROW row;
+  while ((row = mysql_fetch_row(mysql_res))) {
+    if (n >= cap) {
+      cap *= 2;
+      corm_column_info_t *tmp = (corm_column_info_t *)realloc(
+          *out, (size_t)cap * sizeof(corm_column_info_t));
+      if (!tmp) {
+        corm_column_info_free(*out, n);
+        *out = NULL;
+        mysql_free_result(mysql_res);
+        return CORM_ERR_NOMEM;
+      }
+      *out = tmp;
+    }
+    corm_column_info_t *col = &(*out)[n++];
+    col->name = row[0] ? strdup(row[0]) : NULL;
+    col->type_name = row[1] ? strdup(row[1]) : NULL;
+    col->not_null = (row[2] && strcmp(row[2], "YES") != 0) ? 1 : 0;
+    col->is_pk = (row[3] && strcmp(row[3], "PRI") == 0) ? 1 : 0;
+    col->default_value = row[4] ? strdup(row[4]) : NULL;
+  }
+
+  mysql_free_result(mysql_res);
+  *count = n;
+  return CORM_OK;
+}
+
 static corm_backend_t mysql_backend = {
     .name = "mysql",
     .type = CORM_BACKEND_MYSQL,
@@ -586,7 +645,7 @@ static corm_backend_t mysql_backend = {
     .escape_string = mysql_escape,
     .last_insert_id = mysql_last_id,
     .rows_affected = mysql_affected,
-    .describe_table = NULL,
+    .describe_table = mysql_describe_table,
 };
 
 __attribute__((constructor)) static void mysql_register(void) {

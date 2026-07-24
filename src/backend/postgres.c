@@ -418,6 +418,61 @@ static size_t pg_escape(corm_t *db, char *dst, const char *src, size_t len) {
 
 static int64_t pg_last_id(corm_t *db) { return db->last_insert_id_val; }
 
+static corm_err_t pg_describe_table(corm_t *db, const char *table_name,
+                                    corm_column_info_t **out, int *count) {
+  PGconn *handle = (PGconn *)db->conn;
+  if (!handle)
+    return CORM_ERR_BACKEND;
+
+  const char *sql = "SELECT c.column_name, c.data_type, c.is_nullable,"
+                    "  CASE WHEN pk.col IS NOT NULL THEN 1 ELSE 0 END,"
+                    "  c.column_default "
+                    "FROM information_schema.columns c "
+                    "LEFT JOIN ("
+                    "  SELECT ku.column_name AS col"
+                    "  FROM information_schema.table_constraints tc"
+                    "  JOIN information_schema.key_column_usage ku"
+                    "    ON tc.constraint_name = ku.constraint_name"
+                    "  WHERE tc.table_name = $1"
+                    "    AND tc.constraint_type = 'PRIMARY KEY'"
+                    ") pk ON c.column_name = pk.col "
+                    "WHERE c.table_name = $1 "
+                    "ORDER BY c.ordinal_position";
+
+  const char *param_values[1] = {table_name};
+  PGresult *pgres =
+      PQexecParams(handle, sql, 1, NULL, param_values, NULL, NULL, 0);
+
+  if (!pgres || PQresultStatus(pgres) != PGRES_TUPLES_OK) {
+    if (pgres)
+      PQclear(pgres);
+    snprintf(db->err_msg, sizeof(db->err_msg), "%s", PQerrorMessage(handle));
+    return CORM_ERR_BACKEND;
+  }
+
+  int n = PQntuples(pgres);
+  *out = (corm_column_info_t *)calloc((size_t)(n > 0 ? n : 0),
+                                      sizeof(corm_column_info_t));
+  if (!*out && n > 0) {
+    PQclear(pgres);
+    return CORM_ERR_NOMEM;
+  }
+
+  for (int i = 0; i < n; i++) {
+    corm_column_info_t *col = &(*out)[i];
+    col->name = strdup(PQgetvalue(pgres, i, 0));
+    col->type_name = strdup(PQgetvalue(pgres, i, 1));
+    col->not_null = (strcmp(PQgetvalue(pgres, i, 2), "NO") == 0) ? 1 : 0;
+    col->is_pk = (PQgetvalue(pgres, i, 3)[0] == '1') ? 1 : 0;
+    const char *def = PQgetvalue(pgres, i, 4);
+    col->default_value = (def && def[0] != '\0') ? strdup(def) : NULL;
+  }
+
+  PQclear(pgres);
+  *count = n;
+  return CORM_OK;
+}
+
 static int pg_affected(corm_t *db) {
   PGconn *handle = (PGconn *)db->conn;
   if (!handle)
@@ -439,7 +494,7 @@ static corm_backend_t postgres_backend = {
     .escape_string = pg_escape,
     .last_insert_id = pg_last_id,
     .rows_affected = pg_affected,
-    .describe_table = NULL,
+    .describe_table = pg_describe_table,
 };
 
 __attribute__((constructor)) static void pg_register(void) {
