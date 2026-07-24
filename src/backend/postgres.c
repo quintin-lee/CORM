@@ -266,20 +266,20 @@ static corm_err_t pg_query(corm_t *db, const char *sql, corm_value_t *params,
         switch (params[i].type) {
         case CORM_INT:
         case CORM_INT64: {
-          char buf[32];
-          snprintf(buf, sizeof(buf), "%" PRId64, params[i].v.i);
-          tmp_strs[i] = strdup(buf);
+          tmp_strs[i] = malloc(sizeof(int64_t));
+          memcpy(tmp_strs[i], &params[i].v.i, sizeof(int64_t));
           param_values[i] = tmp_strs[i];
-          param_lengths[i] = (int)strlen(tmp_strs[i]);
+          param_lengths[i] = sizeof(int64_t);
+          param_formats[i] = 1; /* binary */
           break;
         }
         case CORM_FLOAT:
         case CORM_DOUBLE: {
-          char buf[64];
-          snprintf(buf, sizeof(buf), "%.15g", params[i].v.f);
-          tmp_strs[i] = strdup(buf);
+          tmp_strs[i] = malloc(sizeof(double));
+          memcpy(tmp_strs[i], &params[i].v.f, sizeof(double));
           param_values[i] = tmp_strs[i];
-          param_lengths[i] = (int)strlen(tmp_strs[i]);
+          param_lengths[i] = sizeof(double);
+          param_formats[i] = 1; /* binary */
           break;
         }
         case CORM_STRING:
