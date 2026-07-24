@@ -37,6 +37,8 @@ corm_err_t corm_build_sql(corm_query_t *q, corm_strbuf_t *sql,
   switch (q->op) {
   case CORM_OP_SELECT: {
     corm_strbuf_append(sql, "SELECT ");
+    if (q->distinct)
+      corm_strbuf_append(sql, "DISTINCT ");
     if (q->select_cols.len > 0)
       corm_strbuf_append(sql, corm_strbuf_cstr(&q->select_cols));
     else

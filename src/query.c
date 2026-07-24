@@ -74,6 +74,8 @@ void corm_query_reset(corm_query_t *q) {
   q->op = CORM_OP_SELECT;
   q->limit = 0;
   q->offset = 0;
+  q->distinct = false;
+  q->preload_rel[0] = '\0';
   for (int i = 0; i < q->param_count; i++)
     corm_param_free(&q->params[i]);
   q->param_count = 0;
@@ -275,6 +277,12 @@ corm_query_t *corm_query_set_raw(corm_query_t *q, const char *clause) {
 corm_query_t *corm_query_unscoped(corm_query_t *q) {
   if (q)
     q->unscoped = true;
+  return q;
+}
+
+corm_query_t *corm_query_distinct(corm_query_t *q) {
+  if (q)
+    q->distinct = true;
   return q;
 }
 
@@ -828,4 +836,32 @@ corm_err_t corm_delete_batch(corm_t *db, corm_model_t *model, void *records,
   if (affected_count)
     *affected_count = total_affected;
   return global_err;
+}
+
+corm_err_t corm_query_count(corm_query_t *q, int64_t *out_count) {
+  if (!q || !q->db || !out_count)
+    return CORM_ERR_NULL;
+
+  corm_strbuf_t old_cols = q->select_cols;
+  corm_strbuf_init(&q->select_cols);
+  corm_strbuf_append(&q->select_cols, "COUNT(*)");
+
+  corm_result_t *res = NULL;
+  corm_err_t err = corm_find(q, &res);
+
+  corm_strbuf_free(&q->select_cols);
+  q->select_cols = old_cols;
+
+  if (err != CORM_OK)
+    return err;
+
+  if (!res || res->row_count == 0) {
+    corm_result_release(res);
+    *out_count = 0;
+    return CORM_OK;
+  }
+
+  *out_count = res->rows[0][0].v.i;
+  corm_result_release(res);
+  return CORM_OK;
 }

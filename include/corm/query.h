@@ -30,9 +30,13 @@ struct corm_query {
       param_cap;        /**< Number of bound params / allocated capacity */
   int limit, offset;    /**< LIMIT and OFFSET values (0 = none) */
   bool unscoped;        /**< Skip soft-delete WHERE clause when true */
+  bool distinct;        /**< Enable DISTINCT for SELECT queries */
   char preload_rel[64]; /**< Target relation table name for eager preloading */
 };
 typedef struct corm_query corm_query_t;
+
+/** Enable DISTINCT for SELECT queries. */
+extern corm_query_t *corm_query_distinct(corm_query_t *q);
 
 /** Exclude soft-delete filter from subsequent queries. */
 extern corm_query_t *corm_query_unscoped(corm_query_t *q);
@@ -101,5 +105,7 @@ extern corm_err_t corm_update(corm_query_t *q, int *affected);
 /** Execute a DELETE using the query's WHERE (or soft-delete if the model has
  * CORM_FLAG_SOFT_DELETE). */
 extern corm_err_t corm_delete(corm_query_t *q, int *affected);
+/** Execute a COUNT(*) query matching current query filters. */
+extern corm_err_t corm_query_count(corm_query_t *q, int64_t *out_count);
 
 #endif /* CORM_QUERY_H */

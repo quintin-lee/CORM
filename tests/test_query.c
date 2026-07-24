@@ -348,6 +348,69 @@ static void test_advanced_where(void) {
   PASS();
 }
 
+static void test_build_distinct(void) {
+  TEST("corm_query_distinct adds DISTINCT keyword to SELECT");
+  corm_query_t mock;
+  memset(&mock, 0, sizeof(mock));
+  mock.model = &test_user_model;
+  mock.op = CORM_OP_SELECT;
+  mock.distinct = true;
+  corm_strbuf_init(&mock.where);
+  corm_strbuf_init(&mock.order);
+  corm_strbuf_init(&mock.group);
+  corm_strbuf_init(&mock.having);
+  corm_strbuf_init(&mock.joins);
+  corm_strbuf_init(&mock.select_cols);
+  corm_strbuf_init(&mock.set_clause);
+
+  corm_strbuf_t sql;
+  corm_strbuf_init(&sql);
+  corm_build_sql(&mock, &sql, CORM_BACKEND_SQLITE);
+  const char *result = corm_strbuf_cstr(&sql);
+  assert(strcmp(result, "SELECT DISTINCT * FROM \"test_users\"") == 0);
+  corm_strbuf_free(&sql);
+  corm_strbuf_free(&mock.where);
+  corm_strbuf_free(&mock.order);
+  corm_strbuf_free(&mock.group);
+  corm_strbuf_free(&mock.having);
+  corm_strbuf_free(&mock.joins);
+  corm_strbuf_free(&mock.select_cols);
+  corm_strbuf_free(&mock.set_clause);
+  PASS();
+}
+
+static void test_query_count(void) {
+  TEST("corm_query_count returns correct row count");
+  corm_t *db;
+  corm_open("sqlite3://:memory:", &db);
+  corm_register_model(db, &test_user_model);
+  corm_model_t *models[] = {&test_user_model};
+  corm_auto_migrate(db, models, 1);
+
+  typedef struct {
+    int id;
+    char name[256];
+    int age;
+  } TestUser;
+  TestUser users[3] = {
+      {.name = "User1", .age = 20},
+      {.name = "User2", .age = 25},
+      {.name = "User3", .age = 30},
+  };
+  for (int i = 0; i < 3; i++) {
+    corm_create_one(db, &test_user_model, &users[i], NULL);
+  }
+
+  corm_query_t *q = corm_query_new(db, &test_user_model);
+  int64_t count = 0;
+  corm_err_t err = corm_query_count(q, &count);
+  assert(err == CORM_OK);
+  assert(count == 3);
+  corm_query_free(q);
+  corm_close(db);
+  PASS();
+}
+
 int main(void) {
   printf("CORM Query Builder Tests\n");
   printf("════════════════════════\n\n");
@@ -363,6 +426,8 @@ int main(void) {
   test_dialect();
   test_batch_insert();
   test_advanced_where();
+  test_build_distinct();
+  test_query_count();
 
   printf("\nResults: %d passed, %d failed\n", tests_passed, tests_failed);
   return tests_failed > 0 ? 1 : 0;
