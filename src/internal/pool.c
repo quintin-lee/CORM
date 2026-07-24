@@ -4,6 +4,13 @@
 #include <string.h>
 #include <time.h>
 
+/* Retry sleep with random jitter (50% of base_ns) to avoid thundering herd */
+static void corm_retry_sleep(long base_ns) {
+  long jitter = (long)(((double)rand() / RAND_MAX) * (base_ns / 2));
+  struct timespec ts = {.tv_sec = 0, .tv_nsec = base_ns + jitter};
+  nanosleep(&ts, NULL);
+}
+
 corm_err_t corm_pool_create(const char *dsn, corm_config_t config,
                             corm_pool_t **out_pool) {
   if (!dsn || !out_pool)
@@ -76,8 +83,7 @@ corm_err_t corm_pool_acquire(corm_pool_t *pool, corm_t **out_db) {
         err = corm_open_with_config(pool->dsn, pool->config, &db);
         if (err == CORM_OK)
           break;
-        struct timespec ts = {.tv_sec = 0, .tv_nsec = 100000000};
-        nanosleep(&ts, NULL);
+        corm_retry_sleep(50000000);
       } while (++retried < 3);
       if (err != CORM_OK) {
         pool->current_open--;
@@ -100,8 +106,7 @@ create_new:
     err = corm_open_with_config(pool->dsn, pool->config, &db);
     if (err == CORM_OK)
       break;
-    struct timespec ts = {.tv_sec = 0, .tv_nsec = 100000000};
-    nanosleep(&ts, NULL);
+    corm_retry_sleep(50000000);
   } while (++retried < 3);
   if (err == CORM_OK) {
     pool->current_open++;

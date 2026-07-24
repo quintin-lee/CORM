@@ -119,10 +119,25 @@ corm_err_t corm_auto_migrate(corm_t *db, corm_model_t *models[],
       corm_dialect_type_name_str(backend, f->type, f->size, type_buf,
                                  sizeof(type_buf));
 
+      /* Propagate column constraints (NOT NULL, DEFAULT, UNIQUE) */
+      char constraints[128] = "";
+      int con_len = 0;
+      if (f->flags & CORM_FLAG_NOT_NULL)
+        con_len += snprintf(constraints + con_len,
+                            sizeof(constraints) - (size_t)con_len, " NOT NULL");
+      if (f->flags & CORM_FLAG_UNIQUE)
+        con_len += snprintf(constraints + con_len,
+                            sizeof(constraints) - (size_t)con_len, " UNIQUE");
+      if (f->default_value && f->default_value[0])
+        snprintf(constraints + con_len, sizeof(constraints) - (size_t)con_len,
+                 " DEFAULT %s", f->default_value);
+      /* FK constraints are deliberately skipped in ALTER ADD COLUMN —
+       * SQLite does not support ALTER TABLE ADD CONSTRAINT for FKs */
+
       const char *lq = corm_dialect_quote(backend, m->table_name);
       snprintf(alter_sql, sizeof(alter_sql),
-               "ALTER TABLE %s%s%s ADD COLUMN %s%s%s %s;", lq, m->table_name,
-               lq, lq, f->name, lq, type_buf);
+               "ALTER TABLE %s%s%s ADD COLUMN %s%s%s %s%s;", lq, m->table_name,
+               lq, lq, f->name, lq, type_buf, constraints);
       corm_exec(db, alter_sql);
     }
 

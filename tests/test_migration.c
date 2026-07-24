@@ -227,10 +227,67 @@ static void test_foreign_key(void) {
   printf("test_foreign_key PASSED\n");
 }
 
+/* ── ALTER TABLE constraint propagation test ── */
+
+typedef struct {
+  int id;
+  char label[64];
+  int status;
+} ConstraintAddModel;
+
+static corm_field_t constraint_add_fields[] = {
+    CORM_FIELD(ConstraintAddModel, id, CORM_INT, CORM_FLAG_PRIMARY, NULL),
+    CORM_FIELD(ConstraintAddModel, label, CORM_STRING, CORM_FLAG_NOT_NULL,
+               NULL),
+    CORM_FIELD(ConstraintAddModel, status, CORM_INT, 0, "0"),
+};
+
+static corm_model_t constraint_add_model = {
+    .table_name = "constraint_add_test",
+    .struct_size = sizeof(ConstraintAddModel),
+    .fields = constraint_add_fields,
+    .field_count = 3,
+    .primary_key = &constraint_add_fields[0],
+};
+
+static void test_alter_add_constraints(void) {
+  corm_t *db = NULL;
+  corm_err_t err = corm_open("sqlite3://:memory:", &db);
+  if (err != CORM_OK) {
+    printf("SKIP (no sqlite3 backend)\n");
+    return;
+  }
+
+  /* Create table with only PK */
+  corm_exec(db, "CREATE TABLE IF NOT EXISTS constraint_add_test ("
+                "id INTEGER PRIMARY KEY AUTOINCREMENT)");
+
+  /* Auto-migrate adds: label TEXT NOT NULL, status INTEGER DEFAULT 0 */
+  corm_model_t *models[] = {&constraint_add_model};
+  assert(corm_auto_migrate(db, models, 1) == CORM_OK);
+
+  /* Verify DEFAULT works: insert with no status, check default */
+  assert(corm_exec(db, "INSERT INTO constraint_add_test (label) "
+                       "VALUES ('test')") == CORM_OK);
+
+  corm_result_t *res = NULL;
+  corm_raw(db, "SELECT status FROM constraint_add_test WHERE id = 1", &res);
+  assert(res != NULL);
+  assert(res->row_count == 1);
+  assert(res->rows[0][0].type == CORM_INT ||
+         res->rows[0][0].type == CORM_INT64);
+  assert(res->rows[0][0].v.i == 0);
+  corm_result_release(res);
+
+  corm_close(db);
+  printf("test_alter_add_constraints PASSED\n");
+}
+
 int main(void) {
   test_incremental_migration();
   test_alter_table_with_reserved_word();
   test_index_creation();
   test_foreign_key();
+  test_alter_add_constraints();
   return 0;
 }

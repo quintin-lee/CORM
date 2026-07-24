@@ -30,10 +30,11 @@ typedef struct {
                                forever) */
   int timeout_ms;           /**< Pool acquire timeout in ms (default: 30000) */
   bool verbose_logging;     /**< Log all SQL queries when true */
+  int stmt_cache_size; /**< Prepared statement cache size (0 = default 64) */
 } corm_config_t;
 
 /** Default config: max_open=0, max_idle=2, lifetime=0, timeout=30000ms,
  * verbose=false */
-#define CORM_DEFAULT_CONFIG {0, 2, 0, 30000, false}
+#define CORM_DEFAULT_CONFIG {0, 2, 0, 30000, false, 0}
 
 #endif /* CORM_CONFIG_H */

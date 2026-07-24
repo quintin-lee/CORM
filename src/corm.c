@@ -61,7 +61,10 @@ corm_err_t corm_open_with_config(const char *dsn, corm_config_t config,
 
   /* Init statement cache (configurable size, default 64) */
   db->stmt_cache = NULL;
-  corm_stmt_cache_create(64, &db->stmt_cache);
+  size_t cache_size =
+      (size_t)(db->config.stmt_cache_size > 0 ? db->config.stmt_cache_size
+                                              : 64);
+  corm_stmt_cache_create(cache_size, &db->stmt_cache);
 
   /* Parse DSN and get backend */
   const char *dsn_body;
