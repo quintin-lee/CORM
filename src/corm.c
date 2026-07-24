@@ -78,9 +78,8 @@ corm_err_t corm_open_with_config(const char *dsn, corm_config_t config,
   }
 
   if (!db->backend->open) {
-    snprintf(db->err_msg, sizeof(db->err_msg),
-             "Backend '%s' is not available (library not found)",
-             db->backend->name);
+    corm_set_err_msg(db, "Backend '%s' is not available (library not found)",
+                     db->backend->name);
     corm_model_registry_free(&db->registry);
     free(db);
     return CORM_ERR_BACKEND;
@@ -157,8 +156,7 @@ corm_err_t corm_savepoint(corm_t *db, const char *name) {
   if (!db || !name)
     return CORM_ERR_NULL;
   if (!is_valid_savepoint_name(name)) {
-    snprintf(db->err_msg, sizeof(db->err_msg), "Invalid savepoint name: '%s'",
-             name);
+    corm_set_err_msg(db, "Invalid savepoint name: '%s'", name);
     return CORM_ERR_NULL;
   }
   char sql[256];
@@ -170,8 +168,7 @@ corm_err_t corm_rollback_to(corm_t *db, const char *name) {
   if (!db || !name)
     return CORM_ERR_NULL;
   if (!is_valid_savepoint_name(name)) {
-    snprintf(db->err_msg, sizeof(db->err_msg), "Invalid savepoint name: '%s'",
-             name);
+    corm_set_err_msg(db, "Invalid savepoint name: '%s'", name);
     return CORM_ERR_NULL;
   }
   char sql[256];
@@ -183,8 +180,7 @@ corm_err_t corm_release_savepoint(corm_t *db, const char *name) {
   if (!db || !name)
     return CORM_ERR_NULL;
   if (!is_valid_savepoint_name(name)) {
-    snprintf(db->err_msg, sizeof(db->err_msg), "Invalid savepoint name: '%s'",
-             name);
+    corm_set_err_msg(db, "Invalid savepoint name: '%s'", name);
     return CORM_ERR_NULL;
   }
   char sql[256];
@@ -216,7 +212,7 @@ corm_err_t corm_exec(corm_t *db, const char *sql) {
 
   db->last_err = err;
   if (err) {
-    strncpy(db->err_sql, sql, sizeof(db->err_sql) - 1);
+    corm_set_err_sql(db, sql);
   }
 
   if (db->logger) {
@@ -242,7 +238,7 @@ corm_err_t corm_raw(corm_t *db, const char *sql, corm_result_t **out) {
 
   db->last_err = err;
   if (err) {
-    strncpy(db->err_sql, sql, sizeof(db->err_sql) - 1);
+    corm_set_err_sql(db, sql);
   }
 
   if (db->logger) {

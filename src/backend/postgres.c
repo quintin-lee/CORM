@@ -92,7 +92,7 @@ static corm_err_t pg_open(corm_t *db, const char *dsn) {
 
   PGconn *handle = PQconnectdb(conninfo);
   if (PQstatus(handle) != CONNECTION_OK) {
-    snprintf(db->err_msg, sizeof(db->err_msg), "%s", PQerrorMessage(handle));
+    corm_set_err_msg(db, "%s", PQerrorMessage(handle));
     PQfinish(handle);
     return CORM_ERR_BACKEND;
   }
@@ -197,7 +197,7 @@ static corm_err_t pg_exec(corm_t *db, const char *sql, corm_value_t *params,
 
     ExecStatusType status = PQresultStatus(pgres);
     if (status != PGRES_COMMAND_OK && status != PGRES_TUPLES_OK) {
-      snprintf(db->err_msg, sizeof(db->err_msg), "%s", PQerrorMessage(handle));
+      corm_set_err_msg(db, "%s", PQerrorMessage(handle));
       PQclear(pgres);
       return CORM_ERR_BACKEND;
     }
@@ -216,7 +216,7 @@ static corm_err_t pg_exec(corm_t *db, const char *sql, corm_value_t *params,
     PGresult *pgres = PQexec(handle, sql);
     ExecStatusType status = PQresultStatus(pgres);
     if (status != PGRES_COMMAND_OK && status != PGRES_TUPLES_OK) {
-      snprintf(db->err_msg, sizeof(db->err_msg), "%s", PQerrorMessage(handle));
+      corm_set_err_msg(db, "%s", PQerrorMessage(handle));
       PQclear(pgres);
       return CORM_ERR_BACKEND;
     }
@@ -315,7 +315,7 @@ static corm_err_t pg_query(corm_t *db, const char *sql, corm_value_t *params,
 
   if (!pgres || (PQresultStatus(pgres) != PGRES_TUPLES_OK &&
                  PQresultStatus(pgres) != PGRES_COMMAND_OK)) {
-    snprintf(db->err_msg, sizeof(db->err_msg), "%s", PQerrorMessage(handle));
+    corm_set_err_msg(db, "%s", PQerrorMessage(handle));
     PQclear(pgres);
     return CORM_ERR_BACKEND;
   }
@@ -446,7 +446,7 @@ static corm_err_t pg_describe_table(corm_t *db, const char *table_name,
   if (!pgres || PQresultStatus(pgres) != PGRES_TUPLES_OK) {
     if (pgres)
       PQclear(pgres);
-    snprintf(db->err_msg, sizeof(db->err_msg), "%s", PQerrorMessage(handle));
+    corm_set_err_msg(db, "%s", PQerrorMessage(handle));
     return CORM_ERR_BACKEND;
   }
 

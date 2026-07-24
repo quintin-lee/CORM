@@ -73,7 +73,7 @@ static corm_err_t mysql_open(corm_t *db, const char *dsn) {
 
   MYSQL *handle = mysql_init(NULL);
   if (!handle) {
-    snprintf(db->err_msg, sizeof(db->err_msg), "mysql_init failed");
+    corm_set_err_msg(db, "mysql_init failed");
     return CORM_ERR_NOMEM;
   }
 
@@ -84,7 +84,7 @@ static corm_err_t mysql_open(corm_t *db, const char *dsn) {
 
   if (!mysql_real_connect(handle, host, user, pass, dbname[0] ? dbname : NULL,
                           (unsigned int)port, NULL, 0)) {
-    snprintf(db->err_msg, sizeof(db->err_msg), "%s", mysql_error(handle));
+    corm_set_err_msg(db, "%s", mysql_error(handle));
     mysql_close(handle);
     return CORM_ERR_BACKEND;
   }
@@ -163,7 +163,7 @@ static corm_err_t mysql_exec(corm_t *db, const char *sql, corm_value_t *params,
 
   if (param_count == 0) {
     if (mysql_query(handle, sql) != 0) {
-      snprintf(db->err_msg, sizeof(db->err_msg), "%s", mysql_error(handle));
+      corm_set_err_msg(db, "%s", mysql_error(handle));
       return CORM_ERR_BACKEND;
     }
     db->last_insert_id_val = (int64_t)mysql_insert_id(handle);
@@ -173,12 +173,12 @@ static corm_err_t mysql_exec(corm_t *db, const char *sql, corm_value_t *params,
 
   MYSQL_STMT *stmt = mysql_stmt_init(handle);
   if (!stmt) {
-    snprintf(db->err_msg, sizeof(db->err_msg), "mysql_stmt_init failed");
+    corm_set_err_msg(db, "mysql_stmt_init failed");
     return CORM_ERR_NOMEM;
   }
 
   if (mysql_stmt_prepare(stmt, sql, (unsigned long)strlen(sql)) != 0) {
-    snprintf(db->err_msg, sizeof(db->err_msg), "%s", mysql_stmt_error(stmt));
+    corm_set_err_msg(db, "%s", mysql_stmt_error(stmt));
     mysql_stmt_close(stmt);
     return CORM_ERR_BACKEND;
   }
@@ -190,14 +190,14 @@ static corm_err_t mysql_exec(corm_t *db, const char *sql, corm_value_t *params,
   }
 
   if (mysql_stmt_bind_param(stmt, bind) != 0) {
-    snprintf(db->err_msg, sizeof(db->err_msg), "%s", mysql_stmt_error(stmt));
+    corm_set_err_msg(db, "%s", mysql_stmt_error(stmt));
     free(bind);
     mysql_stmt_close(stmt);
     return CORM_ERR_BACKEND;
   }
 
   if (mysql_stmt_execute(stmt) != 0) {
-    snprintf(db->err_msg, sizeof(db->err_msg), "%s", mysql_stmt_error(stmt));
+    corm_set_err_msg(db, "%s", mysql_stmt_error(stmt));
     free(bind);
     mysql_stmt_close(stmt);
     return CORM_ERR_BACKEND;
@@ -310,12 +310,12 @@ static corm_err_t mysql_stmt_query(corm_t *db, MYSQL *handle, const char *sql,
                                    corm_result_t **out) {
   MYSQL_STMT *stmt = mysql_stmt_init(handle);
   if (!stmt) {
-    snprintf(db->err_msg, sizeof(db->err_msg), "mysql_stmt_init failed");
+    corm_set_err_msg(db, "mysql_stmt_init failed");
     return CORM_ERR_NOMEM;
   }
 
   if (mysql_stmt_prepare(stmt, sql, (unsigned long)strlen(sql)) != 0) {
-    snprintf(db->err_msg, sizeof(db->err_msg), "%s", mysql_stmt_error(stmt));
+    corm_set_err_msg(db, "%s", mysql_stmt_error(stmt));
     mysql_stmt_close(stmt);
     return CORM_ERR_BACKEND;
   }
@@ -327,7 +327,7 @@ static corm_err_t mysql_stmt_query(corm_t *db, MYSQL *handle, const char *sql,
       return CORM_ERR_NOMEM;
     }
     if (mysql_stmt_bind_param(stmt, bind) != 0) {
-      snprintf(db->err_msg, sizeof(db->err_msg), "%s", mysql_stmt_error(stmt));
+      corm_set_err_msg(db, "%s", mysql_stmt_error(stmt));
       free(bind);
       mysql_stmt_close(stmt);
       return CORM_ERR_BACKEND;
@@ -336,7 +336,7 @@ static corm_err_t mysql_stmt_query(corm_t *db, MYSQL *handle, const char *sql,
   }
 
   if (mysql_stmt_execute(stmt) != 0) {
-    snprintf(db->err_msg, sizeof(db->err_msg), "%s", mysql_stmt_error(stmt));
+    corm_set_err_msg(db, "%s", mysql_stmt_error(stmt));
     mysql_stmt_close(stmt);
     return CORM_ERR_BACKEND;
   }
@@ -354,7 +354,7 @@ static corm_err_t mysql_stmt_query(corm_t *db, MYSQL *handle, const char *sql,
 
   /* Store results so max_length is populated */
   if (mysql_stmt_store_result(stmt) != 0) {
-    snprintf(db->err_msg, sizeof(db->err_msg), "%s", mysql_stmt_error(stmt));
+    corm_set_err_msg(db, "%s", mysql_stmt_error(stmt));
     mysql_free_result(meta);
     mysql_stmt_close(stmt);
     return CORM_ERR_BACKEND;
@@ -460,7 +460,7 @@ static corm_err_t mysql_stmt_query(corm_t *db, MYSQL *handle, const char *sql,
     }
 
     if (mysql_stmt_bind_result(stmt, result_bind) != 0) {
-      snprintf(db->err_msg, sizeof(db->err_msg), "%s", mysql_stmt_error(stmt));
+      corm_set_err_msg(db, "%s", mysql_stmt_error(stmt));
       free(result_bind);
       free(is_null);
       free(lengths);
@@ -534,7 +534,7 @@ static corm_err_t corm_mysql_query(corm_t *db, const char *sql,
 
   if (param_count == 0) {
     if (mysql_query(handle, sql) != 0) {
-      snprintf(db->err_msg, sizeof(db->err_msg), "%s", mysql_error(handle));
+      corm_set_err_msg(db, "%s", mysql_error(handle));
       return CORM_ERR_BACKEND;
     }
     return mysql_simple_query(handle, out);
@@ -586,7 +586,7 @@ static corm_err_t mysql_describe_table(corm_t *db, const char *table_name,
   snprintf(sql, sizeof(sql), "SHOW COLUMNS FROM `%s`", escaped);
 
   if (mysql_query(handle, sql) != 0) {
-    snprintf(db->err_msg, sizeof(db->err_msg), "%s", mysql_error(handle));
+    corm_set_err_msg(db, "%s", mysql_error(handle));
     return CORM_ERR_BACKEND;
   }
 

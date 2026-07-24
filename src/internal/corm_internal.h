@@ -4,6 +4,8 @@
 #include "corm_pub.h"
 #include "hash.h"
 #include "stmt_cache.h"
+#include <stdarg.h>
+#include <stdio.h>
 
 typedef struct {
   corm_hash_t models_by_table;
@@ -28,4 +30,24 @@ struct corm {
   int64_t created_at_ms; /**< Monotonic timestamp at open, for
                             conn_max_lifetime_ms */
 };
+
+/** Set db->err_msg with truncation marker ("...") if the formatted message
+ * overflows the buffer. */
+static inline void corm_set_err_msg(corm_t *db, const char *fmt, ...) {
+  va_list args;
+  va_start(args, fmt);
+  int n = vsnprintf(db->err_msg, sizeof(db->err_msg), fmt, args);
+  va_end(args);
+  if ((size_t)n >= sizeof(db->err_msg))
+    memcpy(db->err_msg + sizeof(db->err_msg) - 4, "...", 4);
+}
+
+/** Copy a SQL string into db->err_sql with truncation marker if it overflows.
+ */
+static inline void corm_set_err_sql(corm_t *db, const char *sql) {
+  int n = snprintf(db->err_sql, sizeof(db->err_sql), "%s", sql);
+  if ((size_t)n >= sizeof(db->err_sql))
+    memcpy(db->err_sql + sizeof(db->err_sql) - 4, "...", 4);
+}
+
 #endif
