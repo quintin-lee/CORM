@@ -92,6 +92,11 @@ extern corm_backend_t *corm_get_backend(corm_backend_type_t type);
 /** Register a model on the connection for auto-migration and lookup. */
 extern corm_err_t corm_register_model(corm_t *db, corm_model_t *model);
 
+/** Parse a DSN string into backend type and body.
+ *  Returns CORM_OK and sets @p out_type + @p out_body. */
+extern corm_err_t corm_dsn_parse(const char *dsn, corm_backend_type_t *out_type,
+                                 const char **out_body);
+
 /** Find a registered model by table name. Returns NULL if not found. */
 extern corm_model_t *corm_find_model(corm_t *db, const char *table_name);
 

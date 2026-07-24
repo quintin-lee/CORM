@@ -6,29 +6,31 @@
 
 #include "internal/corm_internal.h"
 
-/* ── DSN parsing (minimal) ── */
+corm_err_t corm_dsn_parse(const char *dsn, corm_backend_type_t *out_type,
+                          const char **out_body) {
+  if (!dsn || !out_type || !out_body)
+    return CORM_ERR_NULL;
 
-static corm_backend_type_t parse_backend(const char *dsn,
-                                         const char **out_start) {
   if (strncmp(dsn, "sqlite3://", 10) == 0) {
-    *out_start = dsn + 10;
-    return CORM_BACKEND_SQLITE;
+    *out_type = CORM_BACKEND_SQLITE;
+    *out_body = dsn + 10;
+  } else if (strncmp(dsn, "sqlite://", 9) == 0) {
+    *out_type = CORM_BACKEND_SQLITE;
+    *out_body = dsn + 9;
+  } else if (strncmp(dsn, "mysql://", 8) == 0) {
+    *out_type = CORM_BACKEND_MYSQL;
+    *out_body = dsn + 8;
+  } else if (strncmp(dsn, "postgres://", 11) == 0) {
+    *out_type = CORM_BACKEND_POSTGRES;
+    *out_body = dsn + 11;
+  } else if (strncmp(dsn, "postgresql://", 13) == 0) {
+    *out_type = CORM_BACKEND_POSTGRES;
+    *out_body = dsn + 13;
+  } else {
+    *out_type = CORM_BACKEND_SQLITE;
+    *out_body = dsn;
   }
-  if (strncmp(dsn, "sqlite://", 9) == 0) {
-    *out_start = dsn + 9;
-    return CORM_BACKEND_SQLITE;
-  }
-  if (strncmp(dsn, "mysql://", 8) == 0) {
-    *out_start = dsn + 8;
-    return CORM_BACKEND_MYSQL;
-  }
-  if (strncmp(dsn, "postgres://", 11) == 0 ||
-      strncmp(dsn, "postgresql://", 13) == 0) {
-    *out_start = dsn + (dsn[8] == 's' ? 11 : 13);
-    return CORM_BACKEND_POSTGRES;
-  }
-  *out_start = dsn;
-  return CORM_BACKEND_SQLITE; /* default */
+  return CORM_OK;
 }
 
 /* ── Core API ── */
@@ -68,18 +70,26 @@ corm_err_t corm_open_with_config(const char *dsn, corm_config_t config,
 
   /* Parse DSN and get backend */
   const char *dsn_body;
-  corm_backend_type_t backend_type = parse_backend(dsn, &dsn_body);
+  corm_backend_type_t backend_type;
+  err = corm_dsn_parse(dsn, &backend_type, &dsn_body);
+  if (err) {
+    corm_model_registry_free(&db->registry);
+    free(db);
+    return err;
+  }
 
   db->backend = corm_get_backend(backend_type);
   if (!db->backend) {
+    corm_set_err_msg(db, "Backend '%s' not found",
+                     backend_type == CORM_BACKEND_MYSQL      ? "mysql"
+                     : backend_type == CORM_BACKEND_POSTGRES ? "postgres"
+                                                             : "sqlite3");
     corm_model_registry_free(&db->registry);
     free(db);
     return CORM_ERR_NOTFOUND;
   }
 
   if (!db->backend->open) {
-    corm_set_err_msg(db, "Backend '%s' is not available (library not found)",
-                     db->backend->name);
     corm_model_registry_free(&db->registry);
     free(db);
     return CORM_ERR_BACKEND;
