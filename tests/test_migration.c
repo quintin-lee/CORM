@@ -283,11 +283,58 @@ static void test_alter_add_constraints(void) {
   printf("test_alter_add_constraints PASSED\n");
 }
 
+static void test_composite_primary_key(void) {
+  corm_t *db = NULL;
+  corm_err_t err = corm_open("sqlite3://:memory:", &db);
+  if (err != CORM_OK) {
+    printf("SKIP (no sqlite3 backend)\n");
+    return;
+  }
+
+  typedef struct {
+    int tenant_id;
+    int user_id;
+    char role[32];
+  } UserRoleModel;
+
+  corm_field_t user_role_fields[] = {
+      CORM_FIELD(UserRoleModel, tenant_id, CORM_INT, CORM_FLAG_PRIMARY, NULL),
+      CORM_FIELD(UserRoleModel, user_id, CORM_INT, CORM_FLAG_PRIMARY, NULL),
+      CORM_FIELD(UserRoleModel, role, CORM_STRING, 0, NULL),
+  };
+
+  corm_model_t user_role_model = {
+      .table_name = "user_roles",
+      .struct_size = sizeof(UserRoleModel),
+      .fields = user_role_fields,
+      .field_count = 3,
+      .primary_key = NULL,
+  };
+
+  corm_model_t *models[] = {&user_role_model};
+  assert(corm_auto_migrate(db, models, 1) == CORM_OK);
+
+  corm_result_t *res = NULL;
+  err = corm_raw(db,
+                 "SELECT sql FROM sqlite_master WHERE type='table' AND "
+                 "tbl_name='user_roles'",
+                 &res);
+  assert(err == CORM_OK);
+  assert(res != NULL && res->row_count == 1);
+  const char *sql_str = res->rows[0][0].v.s;
+  assert(strstr(sql_str, "PRIMARY KEY") != NULL);
+  corm_result_release(res);
+
+  corm_close(db);
+  printf("test_composite_primary_key PASSED\n");
+}
+
 int main(void) {
   test_incremental_migration();
   test_alter_table_with_reserved_word();
   test_index_creation();
   test_foreign_key();
   test_alter_add_constraints();
+  test_composite_primary_key();
   return 0;
 }

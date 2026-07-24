@@ -16,6 +16,12 @@ static corm_err_t create_table(corm_t *db, corm_backend_type_t backend,
   corm_strbuf_append(&sql, corm_dialect_quote(backend, model->table_name));
   corm_strbuf_append(&sql, " (");
 
+  int pk_count = 0;
+  for (int i = 0; i < model->field_count; i++) {
+    if (model->fields[i].flags & CORM_FLAG_PRIMARY)
+      pk_count++;
+  }
+
   for (int i = 0; i < model->field_count; i++) {
     corm_field_t *f = &model->fields[i];
 
@@ -55,8 +61,8 @@ static corm_err_t create_table(corm_t *db, corm_backend_type_t backend,
     if (f->default_value && f->default_value[0])
       corm_strbuf_appendf(&sql, " DEFAULT %s", f->default_value);
 
-    /* Primary key constraint */
-    if (f->flags & CORM_FLAG_PRIMARY) {
+    /* Primary key constraint — inline for single PK */
+    if ((f->flags & CORM_FLAG_PRIMARY) && pk_count == 1) {
       corm_strbuf_append(&sql, " PRIMARY KEY");
     }
 
@@ -76,7 +82,24 @@ static corm_err_t create_table(corm_t *db, corm_backend_type_t backend,
     }
   }
 
-  /* Composite primary key if no single PK defined */
+  /* Composite primary key if multiple PK fields defined */
+  if (pk_count > 1) {
+    corm_strbuf_append(&sql, ", PRIMARY KEY (");
+    int added = 0;
+    for (int i = 0; i < model->field_count; i++) {
+      corm_field_t *f = &model->fields[i];
+      if (f->flags & CORM_FLAG_PRIMARY) {
+        if (added > 0)
+          corm_strbuf_append(&sql, ", ");
+        corm_strbuf_append(&sql, corm_dialect_quote(backend, f->name));
+        corm_strbuf_append(&sql, f->name);
+        corm_strbuf_append(&sql, corm_dialect_quote(backend, f->name));
+        added++;
+      }
+    }
+    corm_strbuf_append(&sql, ")");
+  }
+
   corm_strbuf_append(&sql, ")");
 
   corm_err_t err = corm_exec(db, corm_strbuf_cstr(&sql));
