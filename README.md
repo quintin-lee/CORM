@@ -5,15 +5,16 @@ A lightweight, GORM-inspired ORM/query builder for C with multi-backend support 
 ## Features
 
 - **Multi-backend**: SQLite3, MySQL, PostgreSQL via vtable dispatch
-- **Auto-migration**: Create tables from model definitions (CREATE TABLE IF NOT EXISTS)
-- **Query builder**: Fluent API for SELECT/INSERT/UPDATE/DELETE with parameterized queries preventing SQL injection
+- **Auto-migration**: Create tables and missing columns from model definitions via dynamic buffer SQL generation
+- **Query builder**: Fluent API for SELECT/INSERT/UPDATE/DELETE with SQL injection prevention and identifier sanitization
 - **Model hooks**: Before/after callbacks for Create/Update/Delete/Find operations
 - **Soft delete**: Mark rows as deleted without physical removal, auto-filtered on queries
-- **Connection pool**: Reuse connections with configurable max count, idle count, and lifetime
-- **Prepared statement cache**: LRU cache with configurable TTL and capacity
+- **Connection pool**: High-performance connection reuse with lock granularity optimization (I/O executed outside mutex) and leak-free node management
+- **Prepared statement cache**: Thread-safe LRU cache with configurable capacity and mutex protection
 - **Type-safe records**: Field offsets computed at compile time, automatic value mapping via `corm_value_t` tagged union
 - **Transaction support**: BEGIN/COMMIT/ROLLBACK + named savepoints
 - **Result iterator**: Forward-only cursor with typed accessors and reference counting
+- **Relation Preload**: Store and manage relation table targets for eager loading queries
 - **Dialect-aware**: Identifier quoting, placeholder format, type mapping, LIMIT/OFFSET per backend
 - **Pluggable logger**: Intercept all SQL execution with timing, error codes, and log levels
 - **Batch operations**: Insert, update, or delete multiple records in batched transactions

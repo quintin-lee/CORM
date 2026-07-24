@@ -261,14 +261,14 @@ Model hooks provide lifecycle callbacks for CRUD operations. Hooks are defined a
 
 ### 11. Connection Pool (`internal/pool.c` / `include/corm/pool.h`)
 
-The connection pool manages reuse of database connections:
+The connection pool manages reuse of database connections with high-performance concurrent locking:
 
 - **Public API**: `corm_pool_create()`, `corm_pool_acquire()`, `corm_pool_release()`, `corm_pool_destroy()`
-- **Max connections**: Guarded by `max_open_conns` in `corm_config_t`. Reaching the limit causes `acquire` to return an error immediately (no queueing).
+- **Max connections**: Guarded by `max_open_conns` in `corm_config_t`. Reaching the limit causes `acquire` to wait or timed-wait on a condition variable.
 - **Idle management**: `max_idle_conns` controls how many connections remain open after release. Excess idle connections are closed.
 - **Lifetime limit**: `conn_max_lifetime_ms` — connections older than this are closed and replaced on next acquire.
-- **Ping on reuse**: Before returning a pooled connection, `corm_pool_acquire()` calls `backend->ping()` to verify the connection is alive. Dead connections are closed and a new one is created.
-- **Thread safety**: Pool operations are guarded by a mutex.
+- **Lock Granularity Optimization**: All slow network and disk I/O operations (`corm_ping`, connection creation, and retry sleeps) are executed *outside* the pool mutex. Slots are atomically reserved/released under lock, ensuring ultra-low lock contention.
+- **Leak-Free Safety**: Node memory allocation failures during release trigger immediate connection teardown and counter decrements to prevent resource leaks.
 
 `corm_open_with_config()` internally uses the pool when `max_open_conns > 0`.
 
@@ -277,9 +277,8 @@ The connection pool manages reuse of database connections:
 The statement cache stores backend-specific prepared statement handles keyed by SQL text:
 
 - **LRU eviction**: A doubly-linked list tracks usage order. When `max_capacity` is reached, the least recently used entry is evicted.
-- **TTL**: Each entry has a `ttl_ms` — entries older than this are invalidated on next lookup.
-- **Hash table**: `corm_hash_t` maps SQL text → `corm_stmt_cache_entry_t*` for O(1) lookup.
-- **Not yet integrated**: The cache module is implemented and tested but not yet wired into the backend drivers. Currently each backend prepares statements fresh on every call.
+- **Thread Safety**: Access to the cache (`get`, `put`, `remove`, `destroy`) is protected by a `pthread_mutex_t` mutex.
+- **Hash table / Linked list**: Double linked-list combined with string key lookup provides O(1) LRU promotion and eviction.
 
 ### 13. Logger (`corm.c`)
 

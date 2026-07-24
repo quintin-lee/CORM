@@ -22,6 +22,11 @@ All notable changes to CORM will be documented in this file.
 - Query `DISTINCT` support: `corm_query_distinct()` (via select cols prefix)
 - Preload scaffolding: `corm_query_preload()` (no-op, reserved for future eager-loading)
 - Query reset: `corm_query_reset()` for reusing query objects
+- Connection pool concurrency: optimized lock granularity by executing network/disk I/O (`corm_ping`, connection creation, and retry sleeps) outside the pool mutex lock
+- Statement cache thread safety: added `pthread_mutex_t` lock protection to `corm_stmt_cache_t`
+- SQL security validation: added `corm_is_valid_identifier()` check to Query Builder field APIs (`where_null`, `where_not_null`, `where_in`, `where_between`, `set`, `preload`) to prevent SQL injection vulnerabilities
+- Migration dynamic buffers: replaced static 512-byte SQL buffers in `corm_auto_migrate()` with dynamic `corm_strbuf_t` instances
+- Relation Preload: updated `corm_query_preload()` to store relation table targets on `corm_query_t`
 - CMake export: `cormConfig.cmake` and `pkg-config corm.pc` for downstream integration
 - CI pipeline: GitHub Actions with GCC/Clang, Debug/Release, ASAN builds
 - AddressSanitizer build option: `CORM_ENABLE_ASAN=ON`
