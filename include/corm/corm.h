@@ -38,6 +38,14 @@ extern corm_err_t corm_begin(corm_t *db);
 /** COMMIT the current transaction. */
 extern corm_err_t corm_commit(corm_t *db);
 
+/** Callback function type for corm_transaction(). Return CORM_OK to commit, or
+ * error code to rollback. */
+typedef corm_err_t (*corm_tx_fn)(corm_t *db, void *arg);
+
+/** Execute a function within an automatic transaction block (BEGIN -> fn() ->
+ * COMMIT/ROLLBACK). */
+extern corm_err_t corm_transaction(corm_t *db, corm_tx_fn fn, void *arg);
+
 /** ROLLBACK the current transaction. */
 extern corm_err_t corm_rollback(corm_t *db);
 

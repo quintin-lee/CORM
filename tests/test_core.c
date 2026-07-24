@@ -74,6 +74,37 @@ static void test_savepoint(void) {
   PASS();
 }
 
+static corm_err_t sample_tx_ok(corm_t *db, void *arg) {
+  (void)db;
+  int *val = (int *)arg;
+  *val = 42;
+  return CORM_OK;
+}
+
+static corm_err_t sample_tx_fail(corm_t *db, void *arg) {
+  (void)db;
+  int *val = (int *)arg;
+  *val = 99;
+  return CORM_ERR_GENERIC;
+}
+
+static void test_transaction_helper(void) {
+  TEST("corm_transaction executes closure and commits or rolls back");
+  corm_t *db;
+  if (corm_open("sqlite3://:memory:", &db) == CORM_OK) {
+    int v = 0;
+    corm_err_t err = corm_transaction(db, sample_tx_ok, &v);
+    assert(err == CORM_OK);
+    assert(v == 42);
+
+    err = corm_transaction(db, sample_tx_fail, &v);
+    assert(err == CORM_ERR_GENERIC);
+
+    corm_close(db);
+  }
+  PASS();
+}
+
 int main(void) {
   printf("CORM Core Tests\n");
   printf("═══════════════\n\n");
@@ -82,6 +113,7 @@ int main(void) {
   test_config_defaults();
   test_core_null_checks();
   test_savepoint();
+  test_transaction_helper();
 
   printf("\nResults: %d passed, %d failed\n", tests_passed, tests_failed);
   return tests_failed > 0 ? 1 : 0;

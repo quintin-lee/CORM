@@ -151,6 +151,24 @@ corm_err_t corm_rollback(corm_t *db) {
   return db->backend->rollback(db);
 }
 
+corm_err_t corm_transaction(corm_t *db, corm_tx_fn fn, void *arg) {
+  if (!db || !fn)
+    return CORM_ERR_NULL;
+
+  corm_err_t err = corm_begin(db);
+  if (err != CORM_OK)
+    return err;
+
+  err = fn(db, arg);
+  if (err == CORM_OK) {
+    corm_err_t cerr = corm_commit(db);
+    return cerr != CORM_OK ? cerr : CORM_OK;
+  } else {
+    corm_rollback(db);
+    return err;
+  }
+}
+
 static const char *isolation_level_sql(corm_isolation_level_t level) {
   switch (level) {
   case CORM_ISOLATION_READ_UNCOMMITTED:
