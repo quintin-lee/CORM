@@ -114,60 +114,11 @@ static corm_err_t corm_mysql_ping(corm_t *db) {
   return mysql_ping(handle) == 0 ? CORM_OK : CORM_ERR_BACKEND;
 }
 
-/* Stack-allocated MYSQL_BIND array for small param counts; heap for large.
- * Caller must free the returned pointer (stack ptr is fine to free). */
+/* Bind corm_value_t params into a MYSQL_BIND array (caller must free) */
 static MYSQL_BIND *mysql_bind_params(corm_value_t *params, int param_count) {
   if (param_count <= 0)
     return NULL;
 
-  /* Use stack allocation for common case (≤32 params) */
-#define MYSQL_SMALL_BIND_CAP 32
-  if ((size_t)param_count <= MYSQL_SMALL_BIND_CAP) {
-    MYSQL_BIND *bind = alloca((size_t)param_count * sizeof(MYSQL_BIND));
-    memset(bind, 0, (size_t)param_count * sizeof(MYSQL_BIND));
-    for (int i = 0; i < param_count; i++) {
-      if (params[i].is_null) {
-        bind[i].buffer_type = MYSQL_TYPE_NULL;
-      } else {
-        switch (params[i].type) {
-        case CORM_INT:
-        case CORM_INT64:
-          bind[i].buffer_type = MYSQL_TYPE_LONGLONG;
-          bind[i].buffer = (char *)&params[i].v.i;
-          break;
-        case CORM_FLOAT:
-        case CORM_DOUBLE:
-          bind[i].buffer_type = MYSQL_TYPE_DOUBLE;
-          bind[i].buffer = (char *)&params[i].v.f;
-          break;
-        case CORM_STRING:
-        case CORM_TEXT:
-          bind[i].buffer_type = MYSQL_TYPE_STRING;
-          bind[i].buffer = params[i].v.s;
-          bind[i].buffer_length = (unsigned long)strlen(params[i].v.s);
-          break;
-        case CORM_BOOL:
-          bind[i].buffer_type = MYSQL_TYPE_TINY;
-          bind[i].buffer = (char *)&params[i].v.b;
-          break;
-        case CORM_BLOB:
-          bind[i].buffer_type = MYSQL_TYPE_BLOB;
-          bind[i].buffer = params[i].v.blob.data;
-          bind[i].buffer_length = (unsigned long)params[i].v.blob.len;
-          break;
-        default:
-          bind[i].buffer_type = MYSQL_TYPE_STRING;
-          bind[i].buffer = params[i].v.s;
-          bind[i].buffer_length =
-              params[i].v.s ? (unsigned long)strlen(params[i].v.s) : 0;
-          break;
-        }
-      }
-    }
-    return bind;
-  }
-
-  /* Heap allocation for large param counts */
   MYSQL_BIND *bind =
       (MYSQL_BIND *)calloc((size_t)param_count, sizeof(MYSQL_BIND));
   if (!bind)
@@ -212,7 +163,6 @@ static MYSQL_BIND *mysql_bind_params(corm_value_t *params, int param_count) {
     }
   }
   return bind;
-#undef MYSQL_SMALL_BIND_CAP
 }
 
 static corm_err_t mysql_exec(corm_t *db, const char *sql, corm_value_t *params,
