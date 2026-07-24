@@ -477,13 +477,20 @@ corm_err_t corm_find_all(corm_t *db, corm_model_t *model, const char *where,
     return err;
   }
 
+  int max_capacity = (count && *count > 0) ? *count : -1;
+  int total_rows = res ? res->row_count : 0;
+  int copy_count = total_rows;
+  if (max_capacity > 0 && copy_count > max_capacity) {
+    copy_count = max_capacity;
+  }
+
   if (res && count)
-    *count = res->row_count;
+    *count = copy_count;
 
   /* Copy rows into records array */
   if (res && records) {
     uint8_t *ptr = (uint8_t *)records;
-    for (int r = 0; r < res->row_count; r++) {
+    for (int r = 0; r < copy_count; r++) {
       for (int i = 0; i < model->field_count; i++) {
         corm_field_t *f = &model->fields[i];
         for (int j = 0; j < res->column_count; j++) {

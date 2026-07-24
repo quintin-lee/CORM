@@ -68,6 +68,7 @@ int main(void) {
 
   /* ── 1. Open database (file-based) ── */
   printf("\n1. Opening file-based SQLite database...\n");
+  remove("/tmp/corm_example.db");
   err = corm_open("sqlite3:///tmp/corm_example.db", &db);
   if (err != CORM_OK) {
     printf("   ERROR: %d\n", err);
@@ -117,7 +118,7 @@ int main(void) {
   /* ── 7. Find all ── */
   print_separator("corm_find_all");
   user_t all_users[10];
-  int total = 0;
+  int total = (int)(sizeof(all_users) / sizeof(all_users[0]));
   corm_find_all(db, &user_model, NULL, all_users, &total);
   for (int i = 0; i < total; i++) {
     printf("   [%d] %s — Age: %d, Score: %.1f\n", all_users[i].id,
