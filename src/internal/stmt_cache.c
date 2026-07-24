@@ -11,11 +11,13 @@ corm_err_t corm_stmt_cache_create(size_t capacity,
     return CORM_ERR_NOMEM;
 
   cache->capacity = capacity;
+  pthread_mutex_init(&cache->lock, NULL);
   *out_cache = cache;
   return CORM_OK;
 }
 
-void *corm_stmt_cache_get(corm_stmt_cache_t *cache, const char *sql) {
+static void *corm_stmt_cache_get_unlocked(corm_stmt_cache_t *cache,
+                                          const char *sql) {
   if (!cache || !sql)
     return NULL;
   corm_stmt_entry_t *curr = cache->head;
@@ -43,15 +45,28 @@ void *corm_stmt_cache_get(corm_stmt_cache_t *cache, const char *sql) {
   return NULL;
 }
 
+void *corm_stmt_cache_get(corm_stmt_cache_t *cache, const char *sql) {
+  if (!cache || !sql)
+    return NULL;
+  pthread_mutex_lock(&cache->lock);
+  void *res = corm_stmt_cache_get_unlocked(cache, sql);
+  pthread_mutex_unlock(&cache->lock);
+  return res;
+}
+
 corm_err_t corm_stmt_cache_put(corm_stmt_cache_t *cache, const char *sql,
                                void *stmt) {
   if (!cache || !sql || !stmt)
     return CORM_ERR_NULL;
 
+  pthread_mutex_lock(&cache->lock);
+
   // Check if exists
-  void *existing = corm_stmt_cache_get(cache, sql);
-  if (existing)
+  void *existing = corm_stmt_cache_get_unlocked(cache, sql);
+  if (existing) {
+    pthread_mutex_unlock(&cache->lock);
     return CORM_OK;
+  }
 
   // Evict tail if full
   if (cache->size >= cache->capacity && cache->tail) {
@@ -70,12 +85,15 @@ corm_err_t corm_stmt_cache_put(corm_stmt_cache_t *cache, const char *sql,
   }
 
   corm_stmt_entry_t *entry = calloc(1, sizeof(corm_stmt_entry_t));
-  if (!entry)
+  if (!entry) {
+    pthread_mutex_unlock(&cache->lock);
     return CORM_ERR_NOMEM;
+  }
 
   entry->sql = strdup(sql);
   if (!entry->sql) {
     free(entry);
+    pthread_mutex_unlock(&cache->lock);
     return CORM_ERR_NOMEM;
   }
   entry->stmt = stmt;
@@ -88,18 +106,23 @@ corm_err_t corm_stmt_cache_put(corm_stmt_cache_t *cache, const char *sql,
     cache->tail = entry;
 
   cache->size++;
+  pthread_mutex_unlock(&cache->lock);
   return CORM_OK;
 }
 
 void corm_stmt_cache_set_destroy_fn(corm_stmt_cache_t *cache,
                                     void (*fn)(void *)) {
-  if (cache)
-    cache->entry_destroy_fn = fn;
+  if (!cache)
+    return;
+  pthread_mutex_lock(&cache->lock);
+  cache->entry_destroy_fn = fn;
+  pthread_mutex_unlock(&cache->lock);
 }
 
 void *corm_stmt_cache_remove(corm_stmt_cache_t *cache, const char *sql) {
   if (!cache || !sql)
     return NULL;
+  pthread_mutex_lock(&cache->lock);
   corm_stmt_entry_t *curr = cache->head;
   while (curr) {
     if (strcmp(curr->sql, sql) == 0) {
@@ -116,16 +139,19 @@ void *corm_stmt_cache_remove(corm_stmt_cache_t *cache, const char *sql) {
       free(curr->sql);
       free(curr);
       cache->size--;
+      pthread_mutex_unlock(&cache->lock);
       return stmt;
     }
     curr = curr->next;
   }
+  pthread_mutex_unlock(&cache->lock);
   return NULL;
 }
 
 void corm_stmt_cache_destroy(corm_stmt_cache_t *cache) {
   if (!cache)
     return;
+  pthread_mutex_lock(&cache->lock);
   corm_stmt_entry_t *curr = cache->head;
   while (curr) {
     corm_stmt_entry_t *next = curr->next;
@@ -135,5 +161,7 @@ void corm_stmt_cache_destroy(corm_stmt_cache_t *cache) {
     free(curr);
     curr = next;
   }
+  pthread_mutex_unlock(&cache->lock);
+  pthread_mutex_destroy(&cache->lock);
   free(cache);
 }

@@ -2,6 +2,7 @@
 #define CORM_STMT_CACHE_H
 
 #include "corm/types.h"
+#include <pthread.h>
 #include <stddef.h>
 
 typedef struct corm_stmt_entry {
@@ -17,6 +18,7 @@ typedef struct {
   corm_stmt_entry_t *head;
   corm_stmt_entry_t *tail;
   void (*entry_destroy_fn)(void *stmt);
+  pthread_mutex_t lock;
 } corm_stmt_cache_t;
 
 corm_err_t corm_stmt_cache_create(size_t capacity,
