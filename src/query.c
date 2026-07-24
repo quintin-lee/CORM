@@ -279,7 +279,9 @@ corm_query_t *corm_query_unscoped(corm_query_t *q) {
 }
 
 corm_query_t *corm_query_preload(corm_query_t *q, const char *relation_name) {
-  (void)relation_name;
+  if (!q || !relation_name || !corm_is_valid_identifier(relation_name))
+    return q;
+  snprintf(q->preload_rel, sizeof(q->preload_rel), "%s", relation_name);
   return q;
 }
 

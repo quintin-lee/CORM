@@ -27,9 +27,10 @@ struct corm_query {
       set_clause;       /**< SQL clause buffers */
   corm_value_t *params; /**< Bound parameter values (deep-copied on bind) */
   int param_count,
-      param_cap;     /**< Number of bound params / allocated capacity */
-  int limit, offset; /**< LIMIT and OFFSET values (0 = none) */
-  bool unscoped;     /**< Skip soft-delete WHERE clause when true */
+      param_cap;        /**< Number of bound params / allocated capacity */
+  int limit, offset;    /**< LIMIT and OFFSET values (0 = none) */
+  bool unscoped;        /**< Skip soft-delete WHERE clause when true */
+  char preload_rel[64]; /**< Target relation table name for eager preloading */
 };
 typedef struct corm_query corm_query_t;
 
@@ -85,10 +86,9 @@ extern corm_query_t *corm_query_set(corm_query_t *q, const char *field,
                                     corm_value_t val);
 /** Set the entire SET clause verbatim (no placeholder conversion). */
 extern corm_query_t *corm_query_set_raw(corm_query_t *q, const char *clause);
-/** Deprecated — preload is not implemented and will be removed. */
+/** Preload relation by table name for eager loading. */
 extern corm_query_t *corm_query_preload(corm_query_t *q,
-                                        const char *relation_name)
-    __attribute__((deprecated("preload is not implemented; will be removed")));
+                                        const char *relation_name);
 /** Execute a SELECT and return a result set. */
 extern corm_err_t corm_find(corm_query_t *q, corm_result_t **out);
 /** Execute a SELECT and populate a single record (with WHERE LIMIT 1). */
