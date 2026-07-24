@@ -13,3 +13,5 @@ build*/
 .codegraph/
 
 compile_commands.json
+
+Testing/
