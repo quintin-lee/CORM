@@ -191,8 +191,6 @@ corm_err_t corm_release_savepoint(corm_t *db, const char *name) {
 
 /* ── Raw SQL ── */
 
-#include <time.h>
-
 void corm_set_logger(corm_t *db, corm_logger_fn logger, void *user_data) {
   if (!db)
     return;

@@ -83,7 +83,9 @@ corm_err_t corm_auto_migrate(corm_t *db, corm_model_t *models[],
 
   for (int i = 0; i < model_count; i++) {
     corm_model_t *m = models[i];
-    create_table(db, backend, m);
+    corm_err_t ct_err = create_table(db, backend, m);
+    if (ct_err != CORM_OK)
+      return ct_err;
 
     /* Introspect existing columns for smart diff */
     corm_column_info_t *existing = NULL;

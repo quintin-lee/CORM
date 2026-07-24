@@ -295,8 +295,10 @@ static size_t sqlite_escape(corm_t *db, char *dst, const char *src,
 static corm_err_t sqlite_describe_table(corm_t *db, const char *table_name,
                                         corm_column_info_t **out, int *count) {
   sqlite3 *handle = (sqlite3 *)db->conn;
+  char *qtable = sqlite3_mprintf("%w", table_name);
   char sql[512];
-  snprintf(sql, sizeof(sql), "PRAGMA table_info('%s')", table_name);
+  snprintf(sql, sizeof(sql), "PRAGMA table_info(%s)", qtable);
+  sqlite3_free(qtable);
 
   sqlite3_stmt *stmt;
   if (sqlite3_prepare_v2(handle, sql, -1, &stmt, NULL) != SQLITE_OK)
