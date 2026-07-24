@@ -152,6 +152,7 @@ Supported scheme prefixes: `sqlite3://`, `sqlite://`, `mysql://`, `postgres://`,
 | `corm_begin(db)` | Begin transaction |
 | `corm_commit(db)` | Commit transaction |
 | `corm_rollback(db)` | Rollback transaction |
+| `corm_transaction(db, fn, arg)` | Execute closure within auto transaction (BEGIN -> fn -> COMMIT/ROLLBACK) |
 | `corm_savepoint(db, name)` | Create named savepoint |
 | `corm_rollback_to(db, name)` | Rollback to savepoint |
 | `corm_release_savepoint(db, name)` | Release savepoint |

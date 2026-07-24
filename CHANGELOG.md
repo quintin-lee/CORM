@@ -19,6 +19,8 @@ All notable changes to CORM will be documented in this file.
 - Predicate queries: `corm_query_where_in()`, `corm_query_where_between()`, `corm_query_where_null()`, `corm_query_where_not_null()`
 - JOIN support: `corm_query_join()` with arbitrary join types
 - Batch insert: `corm_create_batch()` inserts multiple rows in one statement
+- Transaction closure helper: `corm_transaction()` executes closure functions inside automatic BEGIN/COMMIT/ROLLBACK blocks
+- Model schema validation: `corm_validate_model()` validates table names, identifier formats, struct sizes, and duplicate field names upon registration
 - Query DISTINCT API: `corm_query_distinct()` adds `DISTINCT` keyword to generated SELECT SQL
 - Query COUNT API: `corm_query_count()` calculates row count using current query filters
 - Migration composite primary key: `corm_auto_migrate()` detects multiple `CORM_FLAG_PRIMARY` fields and generates table-level `PRIMARY KEY (col1, col2)` constraints
