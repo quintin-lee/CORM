@@ -91,6 +91,12 @@ corm_err_t corm_build_sql(corm_query_t *q, corm_strbuf_t *sql,
       j++;
     }
     corm_strbuf_append(sql, ")");
+
+    /* PostgreSQL: append RETURNING pk_col so last_insert_id works */
+    if (bt == CORM_BACKEND_POSTGRES && q->model->primary_key) {
+      corm_strbuf_append(sql, " RETURNING ");
+      qident(sql, bt, q->model->primary_key->name);
+    }
     return CORM_OK;
   }
   case CORM_OP_UPDATE: {
