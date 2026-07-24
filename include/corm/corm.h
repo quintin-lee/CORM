@@ -104,6 +104,14 @@ extern void corm_field_set_value(void *record, corm_field_t *field,
 extern corm_err_t corm_find_all(corm_t *db, corm_model_t *model,
                                 const char *where, void *records, int *count);
 
+/** Find one record by WHERE condition. Populates a single struct. */
+extern corm_err_t corm_find_one(corm_t *db, corm_model_t *model,
+                                const char *where, void *record);
+
+/** Count records matching a WHERE condition. Pass NULL for total count. */
+extern corm_err_t corm_count(corm_t *db, corm_model_t *model, const char *where,
+                             int *count);
+
 /** Create a single record and return its insert ID. */
 extern corm_err_t corm_create_one(corm_t *db, corm_model_t *model, void *record,
                                   int64_t *insert_id);

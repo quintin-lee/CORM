@@ -375,9 +375,11 @@ corm_err_t corm_create(corm_query_t *q, void *record, int64_t *insert_id) {
   return err;
 }
 
-corm_err_t corm_update(corm_query_t *q, int *affected) {
+/* Internal: update with the actual record pointer passed to hooks */
+static corm_err_t corm_update_internal(corm_query_t *q, int *affected,
+                                       void *record) {
   if (q && q->model && q->model->before_update) {
-    corm_err_t hook_err = q->model->before_update(q->db, NULL);
+    corm_err_t hook_err = q->model->before_update(q->db, record);
     if (hook_err != CORM_OK)
       return hook_err;
   }
@@ -399,27 +401,33 @@ corm_err_t corm_update(corm_query_t *q, int *affected) {
     if (affected)
       *affected = q->db->backend->rows_affected(q->db);
     if (q && q->model && q->model->after_update) {
-      q->model->after_update(q->db, NULL);
+      q->model->after_update(q->db, record);
     }
   }
 
   return err;
 }
 
-corm_err_t corm_delete(corm_query_t *q, int *affected) {
+corm_err_t corm_update(corm_query_t *q, int *affected) {
+  return corm_update_internal(q, affected, NULL);
+}
+
+/* Internal: delete with the actual record pointer passed to hooks */
+static corm_err_t corm_delete_internal(corm_query_t *q, int *affected,
+                                       void *record) {
   if (q && q->model) {
     for (int i = 0; i < q->model->field_count; i++) {
       if (q->model->fields[i].flags & CORM_FLAG_SOFT_DELETE) {
         corm_value_t ts = {
             .type = CORM_STRING, .is_null = false, .v.s = "deleted"};
         corm_query_set(q, q->model->fields[i].name, ts);
-        return corm_update(q, affected);
+        return corm_update_internal(q, affected, record);
       }
     }
   }
 
   if (q && q->model && q->model->before_delete) {
-    corm_err_t hook_err = q->model->before_delete(q->db, NULL);
+    corm_err_t hook_err = q->model->before_delete(q->db, record);
     if (hook_err != CORM_OK)
       return hook_err;
   }
@@ -441,11 +449,15 @@ corm_err_t corm_delete(corm_query_t *q, int *affected) {
     if (affected)
       *affected = q->db->backend->rows_affected(q->db);
     if (q && q->model && q->model->after_delete) {
-      q->model->after_delete(q->db, NULL);
+      q->model->after_delete(q->db, record);
     }
   }
 
   return err;
+}
+
+corm_err_t corm_delete(corm_query_t *q, int *affected) {
+  return corm_delete_internal(q, affected, NULL);
 }
 
 /* ── High-level convenience ── */
@@ -503,6 +515,42 @@ corm_err_t corm_create_one(corm_t *db, corm_model_t *model, void *record,
   return err;
 }
 
+corm_err_t corm_find_one(corm_t *db, corm_model_t *model, const char *where,
+                         void *record) {
+  corm_query_t *q = corm_query_new(db, model);
+  if (!q)
+    return CORM_ERR_NOMEM;
+  if (where)
+    corm_query_where(q, where);
+  corm_err_t err = corm_first(q, record);
+  corm_query_free(q);
+  return err;
+}
+
+corm_err_t corm_count(corm_t *db, corm_model_t *model, const char *where,
+                      int *count) {
+  if (count)
+    *count = 0;
+  corm_query_t *q = corm_query_new(db, model);
+  if (!q)
+    return CORM_ERR_NOMEM;
+  corm_query_select(q, "COUNT(*)");
+  if (where)
+    corm_query_where(q, where);
+  corm_result_t *res = NULL;
+  corm_err_t err = corm_find(q, &res);
+  if (err) {
+    corm_result_release(res);
+    corm_query_free(q);
+    return err;
+  }
+  if (res && res->row_count > 0 && count)
+    *count = (int)res->rows[0][0].v.i;
+  corm_result_release(res);
+  corm_query_free(q);
+  return CORM_OK;
+}
+
 corm_err_t corm_create_batch(corm_t *db, corm_model_t *model, void *records,
                              int count, int batch_size, int *inserted_count) {
   if (!db || !model || !records || count <= 0)
@@ -542,6 +590,17 @@ corm_err_t corm_update_batch(corm_t *db, corm_model_t *model, void *records,
   if (!db || !model || !records || count <= 0)
     return CORM_ERR_NULL;
 
+  /* Require a primary key — without it every update targets ALL rows */
+  int pk_field = -1;
+  for (int j = 0; j < model->field_count; j++) {
+    if (model->fields[j].flags & CORM_FLAG_PRIMARY) {
+      pk_field = j;
+      break;
+    }
+  }
+  if (pk_field < 0)
+    return CORM_ERR_MISMATCH;
+
   uint8_t *bytes = (uint8_t *)records;
   int total_affected = 0;
   corm_err_t global_err = CORM_OK;
@@ -557,30 +616,25 @@ corm_err_t corm_update_batch(corm_t *db, corm_model_t *model, void *records,
       return CORM_ERR_NOMEM;
     }
 
-    int pk_field = -1;
     for (int j = 0; j < model->field_count; j++) {
       corm_field_t *f = &model->fields[j];
-      if (f->flags & CORM_FLAG_PRIMARY) {
-        pk_field = j;
+      if (f->flags & CORM_FLAG_PRIMARY)
         continue;
-      }
       corm_value_t val = corm_field_get_value(rec, f);
       corm_query_set(q, f->name, val);
     }
 
-    if (pk_field >= 0) {
-      corm_field_t *pk = &model->fields[pk_field];
-      corm_strbuf_t where;
-      corm_strbuf_init(&where);
-      corm_strbuf_appendf(&where, "%s = ?", pk->name);
-      corm_query_where(q, corm_strbuf_cstr(&where));
-      corm_strbuf_free(&where);
-      corm_value_t pk_val = corm_field_get_value(rec, pk);
-      corm_query_bind(q, pk_val);
-    }
+    corm_field_t *pk = &model->fields[pk_field];
+    corm_strbuf_t where;
+    corm_strbuf_init(&where);
+    corm_strbuf_appendf(&where, "%s = ?", pk->name);
+    corm_query_where(q, corm_strbuf_cstr(&where));
+    corm_strbuf_free(&where);
+    corm_value_t pk_val = corm_field_get_value(rec, pk);
+    corm_query_bind(q, pk_val);
 
     int aff = 0;
-    corm_err_t err = corm_update(q, &aff);
+    corm_err_t err = corm_update_internal(q, &aff, rec);
     total_affected += aff;
     corm_query_free(q);
 
@@ -605,6 +659,27 @@ corm_err_t corm_delete_batch(corm_t *db, corm_model_t *model, void *records,
   if (!db || !model || !records || count <= 0)
     return CORM_ERR_NULL;
 
+  /* Require a primary key — without it every delete targets ALL rows */
+  int pk_field = -1;
+  for (int j = 0; j < model->field_count; j++) {
+    if (model->fields[j].flags & CORM_FLAG_PRIMARY) {
+      pk_field = j;
+      break;
+    }
+  }
+  if (pk_field < 0)
+    return CORM_ERR_MISMATCH;
+
+  int has_soft_delete = 0;
+  int soft_delete_idx = -1;
+  for (int j = 0; j < model->field_count; j++) {
+    if (model->fields[j].flags & CORM_FLAG_SOFT_DELETE) {
+      has_soft_delete = 1;
+      soft_delete_idx = j;
+      break;
+    }
+  }
+
   uint8_t *bytes = (uint8_t *)records;
   int total_affected = 0;
   corm_err_t global_err = CORM_OK;
@@ -620,49 +695,27 @@ corm_err_t corm_delete_batch(corm_t *db, corm_model_t *model, void *records,
       return CORM_ERR_NOMEM;
     }
 
-    int has_soft_delete = 0;
-    for (int j = 0; j < model->field_count; j++) {
-      if (model->fields[j].flags & CORM_FLAG_SOFT_DELETE) {
-        has_soft_delete = 1;
-        break;
-      }
-    }
-
     if (has_soft_delete) {
-      for (int j = 0; j < model->field_count; j++) {
-        if (model->fields[j].flags & CORM_FLAG_SOFT_DELETE) {
-          corm_value_t ts = {
-              .type = CORM_STRING, .is_null = false, .v.s = "deleted"};
-          corm_query_set(q, model->fields[j].name, ts);
-          break;
-        }
-      }
+      corm_value_t ts = {
+          .type = CORM_STRING, .is_null = false, .v.s = "deleted"};
+      corm_query_set(q, model->fields[soft_delete_idx].name, ts);
     }
 
-    int pk_field = -1;
-    for (int j = 0; j < model->field_count; j++) {
-      if (model->fields[j].flags & CORM_FLAG_PRIMARY) {
-        pk_field = j;
-        break;
-      }
-    }
-    if (pk_field >= 0) {
-      corm_field_t *pk = &model->fields[pk_field];
-      corm_strbuf_t where;
-      corm_strbuf_init(&where);
-      corm_strbuf_appendf(&where, "%s = ?", pk->name);
-      corm_query_where(q, corm_strbuf_cstr(&where));
-      corm_strbuf_free(&where);
-      corm_value_t pk_val = corm_field_get_value(rec, pk);
-      corm_query_bind(q, pk_val);
-    }
+    corm_field_t *pk = &model->fields[pk_field];
+    corm_strbuf_t where;
+    corm_strbuf_init(&where);
+    corm_strbuf_appendf(&where, "%s = ?", pk->name);
+    corm_query_where(q, corm_strbuf_cstr(&where));
+    corm_strbuf_free(&where);
+    corm_value_t pk_val = corm_field_get_value(rec, pk);
+    corm_query_bind(q, pk_val);
 
     int aff = 0;
     corm_err_t err;
     if (has_soft_delete)
-      err = corm_update(q, &aff);
+      err = corm_update_internal(q, &aff, rec);
     else
-      err = corm_delete(q, &aff);
+      err = corm_delete_internal(q, &aff, rec);
     total_affected += aff;
     corm_query_free(q);
 
