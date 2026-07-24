@@ -31,6 +31,8 @@ corm_err_t corm_pool_create(const char *dsn, corm_config_t config,
 corm_err_t corm_pool_acquire(corm_pool_t *pool, corm_t **out_db) {
   if (!pool || !out_db)
     return CORM_ERR_NULL;
+
+retry_acquire:
   pthread_mutex_lock(&pool->lock);
 
   while (!pool->idle_head && pool->config.max_open_conns > 0 &&
@@ -62,45 +64,48 @@ corm_err_t corm_pool_acquire(corm_pool_t *pool, corm_t **out_db) {
     free(node);
 
     /* Check conn_max_lifetime_ms before reusing */
+    bool expired = false;
     if (pool->config.conn_max_lifetime_ms > 0) {
       struct timespec ts;
       clock_gettime(CLOCK_MONOTONIC, &ts);
       int64_t now_ms =
           (int64_t)ts.tv_sec * 1000 + (int64_t)ts.tv_nsec / 1000000;
       if (now_ms - db->created_at_ms >= pool->config.conn_max_lifetime_ms) {
-        corm_close(db);
-        pool->current_open--;
-        goto create_new;
+        expired = true;
       }
     }
 
-    // Ping check on idle connection
-    if (corm_ping(db) != CORM_OK) {
+    if (expired) {
       corm_close(db);
-      corm_err_t err;
-      int retried = 0;
-      do {
-        err = corm_open_with_config(pool->dsn, pool->config, &db);
-        if (err == CORM_OK)
-          break;
-        corm_retry_sleep(50000000);
-      } while (++retried < 3);
-      if (err != CORM_OK) {
-        pool->current_open--;
-        pthread_mutex_unlock(&pool->lock);
-        return err;
-      }
+      pool->current_open--;
+      pthread_cond_signal(&pool->cond);
+      pthread_mutex_unlock(&pool->lock);
+      goto retry_acquire;
     }
 
-    *out_db = db;
+    /* Unlock before performing I/O (ping check) */
     pthread_mutex_unlock(&pool->lock);
-    return CORM_OK;
+
+    if (corm_ping(db) == CORM_OK) {
+      *out_db = db;
+      return CORM_OK;
+    }
+
+    /* Ping failed: close connection and reduce current_open */
+    corm_close(db);
+    pthread_mutex_lock(&pool->lock);
+    pool->current_open--;
+    pthread_cond_signal(&pool->cond);
+    pthread_mutex_unlock(&pool->lock);
+    goto retry_acquire;
   }
 
-create_new:
+  /* No idle connection: reserve slot and unlock before opening */
+  pool->current_open++;
+  pthread_mutex_unlock(&pool->lock);
 
   corm_t *db = NULL;
-  corm_err_t err;
+  corm_err_t err = CORM_ERR_GENERIC;
   int retried = 0;
   do {
     err = corm_open_with_config(pool->dsn, pool->config, &db);
@@ -108,10 +113,16 @@ create_new:
       break;
     corm_retry_sleep(50000000);
   } while (++retried < 3);
+
   if (err == CORM_OK) {
-    pool->current_open++;
     *out_db = db;
+    return CORM_OK;
   }
+
+  /* Creation failed: rollback reserved slot */
+  pthread_mutex_lock(&pool->lock);
+  pool->current_open--;
+  pthread_cond_signal(&pool->cond);
   pthread_mutex_unlock(&pool->lock);
   return err;
 }
@@ -133,6 +144,9 @@ corm_err_t corm_pool_release(corm_pool_t *pool, corm_t *db) {
 
   corm_pool_node_t *node = malloc(sizeof(corm_pool_node_t));
   if (!node) {
+    corm_close(db);
+    pool->current_open--;
+    pthread_cond_signal(&pool->cond);
     pthread_mutex_unlock(&pool->lock);
     return CORM_ERR_NOMEM;
   }
