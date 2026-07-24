@@ -19,9 +19,9 @@ All notable changes to CORM will be documented in this file.
 - Predicate queries: `corm_query_where_in()`, `corm_query_where_between()`, `corm_query_where_null()`, `corm_query_where_not_null()`
 - JOIN support: `corm_query_join()` with arbitrary join types
 - Batch insert: `corm_create_batch()` inserts multiple rows in one statement
-- Query `DISTINCT` support: `corm_query_distinct()` (via select cols prefix)
-- Preload scaffolding: `corm_query_preload()` (no-op, reserved for future eager-loading)
-- Query reset: `corm_query_reset()` for reusing query objects
+- Query DISTINCT API: `corm_query_distinct()` adds `DISTINCT` keyword to generated SELECT SQL
+- Query COUNT API: `corm_query_count()` calculates row count using current query filters
+- Migration composite primary key: `corm_auto_migrate()` detects multiple `CORM_FLAG_PRIMARY` fields and generates table-level `PRIMARY KEY (col1, col2)` constraints
 - Connection pool concurrency: optimized lock granularity by executing network/disk I/O (`corm_ping`, connection creation, and retry sleeps) outside the pool mutex lock
 - Statement cache thread safety: added `pthread_mutex_t` lock protection to `corm_stmt_cache_t`
 - SQL security validation: added `corm_is_valid_identifier()` check to Query Builder field APIs (`where_null`, `where_not_null`, `where_in`, `where_between`, `set`, `preload`) to prevent SQL injection vulnerabilities

@@ -197,6 +197,8 @@ Logger callback signature: `void (*)(void *user_data, corm_log_level_t level, co
 | `corm_query_having(q, cond)` | HAVING condition |
 | `corm_query_limit(q, n)` | LIMIT |
 | `corm_query_offset(q, n)` | OFFSET |
+| `corm_query_distinct(q)` | SELECT DISTINCT |
+| `corm_query_count(q, &count)` | Execute SELECT COUNT(*) query |
 | `corm_query_set(q, field, val)` | SET field = ? (for UPDATE) |
 | `corm_query_set_raw(q, expr)` | SET expression (raw, no quoting) |
 | `corm_query_bind(q, val)` | Bind a parameter value (corm_value_t) |
