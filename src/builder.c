@@ -11,6 +11,27 @@ static void qident(corm_strbuf_t *sql, corm_backend_type_t bt,
   corm_strbuf_append(sql, q);
 }
 
+/* Append `text` rewriting `?` to dialect-aware placeholders starting at
+ * `start_index`. Returns the number of placeholders consumed. */
+static int append_with_placeholders(corm_strbuf_t *sql, corm_backend_type_t bt,
+                                    const char *text, int start_index) {
+  int pi = start_index;
+  char ph_buf[16];
+  while (*text) {
+    const char *qm = strchr(text, '?');
+    if (qm) {
+      corm_strbuf_appendn(sql, text, (size_t)(qm - text));
+      corm_dialect_placeholder_str(bt, pi++, ph_buf, sizeof(ph_buf));
+      corm_strbuf_append(sql, ph_buf);
+      text = qm + 1;
+    } else {
+      corm_strbuf_append(sql, text);
+      break;
+    }
+  }
+  return pi - start_index;
+}
+
 corm_err_t corm_build_sql(corm_query_t *q, corm_strbuf_t *sql,
                           corm_backend_type_t bt) {
   switch (q->op) {
@@ -24,8 +45,10 @@ corm_err_t corm_build_sql(corm_query_t *q, corm_strbuf_t *sql,
     qident(sql, bt, q->model->table_name);
     if (q->joins.len > 0)
       corm_strbuf_appendf(sql, " %s", corm_strbuf_cstr(&q->joins));
-    if (q->where.len > 0)
-      corm_strbuf_appendf(sql, " WHERE %s", corm_strbuf_cstr(&q->where));
+    if (q->where.len > 0) {
+      corm_strbuf_append(sql, " WHERE ");
+      append_with_placeholders(sql, bt, corm_strbuf_cstr(&q->where), 0);
+    }
     if (q->group.len > 0)
       corm_strbuf_appendf(sql, " GROUP BY %s", corm_strbuf_cstr(&q->group));
     if (q->having.len > 0)
@@ -75,21 +98,7 @@ corm_err_t corm_build_sql(corm_query_t *q, corm_strbuf_t *sql,
     qident(sql, bt, q->model->table_name);
     corm_strbuf_append(sql, " SET ");
     if (q->set_clause.len > 0) {
-      const char *src = corm_strbuf_cstr(&q->set_clause);
-      int pi = 0;
-      char ph_buf[16];
-      while (*src) {
-        const char *qm = strchr(src, '?');
-        if (qm) {
-          corm_strbuf_appendn(sql, src, (size_t)(qm - src));
-          corm_dialect_placeholder_str(bt, pi++, ph_buf, sizeof(ph_buf));
-          corm_strbuf_append(sql, ph_buf);
-          src = qm + 1;
-        } else {
-          corm_strbuf_append(sql, src);
-          break;
-        }
-      }
+      append_with_placeholders(sql, bt, corm_strbuf_cstr(&q->set_clause), 0);
     } else {
       /* SET all non-PK fields */
       int count = 0;
@@ -107,15 +116,37 @@ corm_err_t corm_build_sql(corm_query_t *q, corm_strbuf_t *sql,
         count++;
       }
     }
-    if (q->where.len > 0)
-      corm_strbuf_appendf(sql, " WHERE %s", corm_strbuf_cstr(&q->where));
+    if (q->where.len > 0) {
+      int where_offset;
+      if (q->set_clause.len > 0) {
+        const char *s = corm_strbuf_cstr(&q->set_clause);
+        int n = 0;
+        while (*s) {
+          if (*(s++) == '?')
+            n++;
+        }
+        where_offset = n;
+      } else {
+        int n = 0;
+        for (int i = 0; i < q->model->field_count; i++) {
+          if (!(q->model->fields[i].flags & CORM_FLAG_PRIMARY))
+            n++;
+        }
+        where_offset = n;
+      }
+      corm_strbuf_append(sql, " WHERE ");
+      append_with_placeholders(sql, bt, corm_strbuf_cstr(&q->where),
+                                where_offset);
+    }
     return CORM_OK;
   }
   case CORM_OP_DELETE: {
     corm_strbuf_append(sql, "DELETE FROM ");
     qident(sql, bt, q->model->table_name);
-    if (q->where.len > 0)
-      corm_strbuf_appendf(sql, " WHERE %s", corm_strbuf_cstr(&q->where));
+    if (q->where.len > 0) {
+      corm_strbuf_append(sql, " WHERE ");
+      append_with_placeholders(sql, bt, corm_strbuf_cstr(&q->where), 0);
+    }
     return CORM_OK;
   }
   }

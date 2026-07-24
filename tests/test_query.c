@@ -282,7 +282,7 @@ static void test_build_update_pg(void) {
   assert(strstr(result, "\"test_users\"") != NULL);
   assert(strstr(result, "name = $1") != NULL);
   assert(strstr(result, "age = $2") != NULL);
-  assert(strstr(result, "WHERE id = ?") != NULL);
+  assert(strstr(result, "WHERE id = $3") != NULL);
   corm_strbuf_free(&sql);
   corm_strbuf_free(&mock.where);
   corm_strbuf_free(&mock.order);
