@@ -25,5 +25,7 @@ struct corm {
   corm_logger_fn logger;
   void *logger_user_data;
   corm_stmt_cache_t *stmt_cache;
+  int64_t created_at_ms; /**< Monotonic timestamp at open, for
+                            conn_max_lifetime_ms */
 };
 #endif

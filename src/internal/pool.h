@@ -13,6 +13,7 @@ struct corm_pool {
   char dsn[512];
   corm_config_t config;
   int current_open;
+  int idle_count; /**< Number of connections currently in the idle queue */
   corm_pool_node_t *idle_head;
   pthread_mutex_t lock;
   pthread_cond_t cond;

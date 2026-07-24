@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "internal/corm_internal.h"
 
@@ -89,6 +90,11 @@ corm_err_t corm_open_with_config(const char *dsn, corm_config_t config,
     free(db);
     return err;
   }
+
+  /* Record creation time for conn_max_lifetime_ms enforcement */
+  struct timespec ts;
+  clock_gettime(CLOCK_MONOTONIC, &ts);
+  db->created_at_ms = (int64_t)ts.tv_sec * 1000 + (int64_t)ts.tv_nsec / 1000000;
 
   *out = db;
   return CORM_OK;

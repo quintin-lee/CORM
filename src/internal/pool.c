@@ -1,6 +1,8 @@
 #include "pool.h"
+#include "corm_internal.h"
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 corm_err_t corm_pool_create(const char *dsn, corm_config_t config,
                             corm_pool_t **out_pool) {
@@ -18,8 +20,6 @@ corm_err_t corm_pool_create(const char *dsn, corm_config_t config,
   *out_pool = pool;
   return CORM_OK;
 }
-
-#include <time.h>
 
 corm_err_t corm_pool_acquire(corm_pool_t *pool, corm_t **out_db) {
   if (!pool || !out_db)
@@ -50,8 +50,22 @@ corm_err_t corm_pool_acquire(corm_pool_t *pool, corm_t **out_db) {
   if (pool->idle_head) {
     corm_pool_node_t *node = pool->idle_head;
     pool->idle_head = node->next;
+    pool->idle_count--;
     corm_t *db = node->db;
     free(node);
+
+    /* Check conn_max_lifetime_ms before reusing */
+    if (pool->config.conn_max_lifetime_ms > 0) {
+      struct timespec ts;
+      clock_gettime(CLOCK_MONOTONIC, &ts);
+      int64_t now_ms =
+          (int64_t)ts.tv_sec * 1000 + (int64_t)ts.tv_nsec / 1000000;
+      if (now_ms - db->created_at_ms >= pool->config.conn_max_lifetime_ms) {
+        corm_close(db);
+        pool->current_open--;
+        goto create_new;
+      }
+    }
 
     // Ping check on idle connection
     if (corm_ping(db) != CORM_OK) {
@@ -77,6 +91,8 @@ corm_err_t corm_pool_acquire(corm_pool_t *pool, corm_t **out_db) {
     return CORM_OK;
   }
 
+create_new:
+
   corm_t *db = NULL;
   corm_err_t err;
   int retried = 0;
@@ -100,6 +116,16 @@ corm_err_t corm_pool_release(corm_pool_t *pool, corm_t *db) {
     return CORM_ERR_NULL;
   pthread_mutex_lock(&pool->lock);
 
+  /* Enforce max_idle_conns: close excess connections instead of enqueueing */
+  if (pool->config.max_idle_conns > 0 &&
+      pool->idle_count >= pool->config.max_idle_conns) {
+    corm_close(db);
+    pool->current_open--;
+    pthread_cond_signal(&pool->cond);
+    pthread_mutex_unlock(&pool->lock);
+    return CORM_OK;
+  }
+
   corm_pool_node_t *node = malloc(sizeof(corm_pool_node_t));
   if (!node) {
     pthread_mutex_unlock(&pool->lock);
@@ -108,6 +134,7 @@ corm_err_t corm_pool_release(corm_pool_t *pool, corm_t *db) {
   node->db = db;
   node->next = pool->idle_head;
   pool->idle_head = node;
+  pool->idle_count++;
 
   pthread_cond_signal(&pool->cond);
   pthread_mutex_unlock(&pool->lock);
