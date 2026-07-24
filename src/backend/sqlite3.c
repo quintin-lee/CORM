@@ -292,6 +292,52 @@ static size_t sqlite_escape(corm_t *db, char *dst, const char *src,
   return j;
 }
 
+static corm_err_t sqlite_describe_table(corm_t *db, const char *table_name,
+                                        corm_column_info_t **out, int *count) {
+  sqlite3 *handle = (sqlite3 *)db->conn;
+  char sql[512];
+  snprintf(sql, sizeof(sql), "PRAGMA table_info('%s')", table_name);
+
+  sqlite3_stmt *stmt;
+  if (sqlite3_prepare_v2(handle, sql, -1, &stmt, NULL) != SQLITE_OK)
+    return CORM_ERR_BACKEND;
+
+  int cap = 16;
+  *out = (corm_column_info_t *)calloc((size_t)cap, sizeof(corm_column_info_t));
+  if (!*out) {
+    sqlite3_finalize(stmt);
+    return CORM_ERR_NOMEM;
+  }
+  int n = 0;
+
+  while (sqlite3_step(stmt) == SQLITE_ROW) {
+    if (n >= cap) {
+      cap *= 2;
+      corm_column_info_t *tmp = (corm_column_info_t *)realloc(
+          *out, (size_t)cap * sizeof(corm_column_info_t));
+      if (!tmp) {
+        corm_column_info_free(*out, n);
+        *out = NULL;
+        sqlite3_finalize(stmt);
+        return CORM_ERR_NOMEM;
+      }
+      *out = tmp;
+    }
+    corm_column_info_t *col = &(*out)[n++];
+    const char *name = (const char *)sqlite3_column_text(stmt, 1);
+    const char *type = (const char *)sqlite3_column_text(stmt, 2);
+    col->name = name ? strdup(name) : NULL;
+    col->type_name = type ? strdup(type) : NULL;
+    col->not_null = sqlite3_column_int(stmt, 3);
+    col->is_pk = sqlite3_column_int(stmt, 5);
+    const char *def = (const char *)sqlite3_column_text(stmt, 4);
+    col->default_value = def ? strdup(def) : NULL;
+  }
+  sqlite3_finalize(stmt);
+  *count = n;
+  return CORM_OK;
+}
+
 static int64_t sqlite_last_id(corm_t *db) {
   sqlite3 *handle = (sqlite3 *)db->conn;
   return (int64_t)sqlite3_last_insert_rowid(handle);
@@ -316,6 +362,7 @@ static corm_backend_t sqlite3_backend = {
     .escape_string = sqlite_escape,
     .last_insert_id = sqlite_last_id,
     .rows_affected = sqlite_affected,
+    .describe_table = sqlite_describe_table,
 };
 
 /* Constructor — auto-register on load */
@@ -344,6 +391,7 @@ static corm_backend_t sqlite3_stub_backend = {
     .escape_string = NULL,
     .last_insert_id = NULL,
     .rows_affected = NULL,
+    .describe_table = NULL,
 };
 
 __attribute__((constructor)) static void sqlite_stub_register(void) {

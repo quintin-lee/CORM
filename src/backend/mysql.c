@@ -586,6 +586,7 @@ static corm_backend_t mysql_backend = {
     .escape_string = mysql_escape,
     .last_insert_id = mysql_last_id,
     .rows_affected = mysql_affected,
+    .describe_table = NULL,
 };
 
 __attribute__((constructor)) static void mysql_register(void) {

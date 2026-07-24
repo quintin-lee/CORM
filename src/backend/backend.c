@@ -43,3 +43,14 @@ corm_backend_t *corm_get_backend(corm_backend_type_t type) {
   pthread_mutex_unlock(&g_backend_mutex);
   return NULL;
 }
+
+void corm_column_info_free(corm_column_info_t *cols, int count) {
+  if (!cols)
+    return;
+  for (int i = 0; i < count; i++) {
+    free(cols[i].name);
+    free(cols[i].type_name);
+    free(cols[i].default_value);
+  }
+  free(cols);
+}

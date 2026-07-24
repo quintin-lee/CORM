@@ -103,8 +103,134 @@ void test_alter_table_with_reserved_word(void) {
   printf("test_alter_table_with_reserved_word PASSED\n");
 }
 
+/* ── Index creation test ── */
+
+typedef struct {
+  int id;
+  char email[64];
+} IndexedModel;
+
+static corm_field_t indexed_fields[] = {
+    CORM_FIELD(IndexedModel, id, CORM_INT, CORM_FLAG_PRIMARY, NULL),
+    CORM_FIELD(IndexedModel, email, CORM_STRING, CORM_FLAG_INDEX, NULL),
+};
+
+static corm_model_t indexed_model = {
+    .table_name = "indexed_test",
+    .struct_size = sizeof(IndexedModel),
+    .fields = indexed_fields,
+    .field_count = 2,
+    .primary_key = &indexed_fields[0],
+};
+
+static void test_index_creation(void) {
+  corm_t *db = NULL;
+  corm_err_t err = corm_open("sqlite3://:memory:", &db);
+  if (err != CORM_OK) {
+    printf("SKIP (no sqlite3 backend)\n");
+    return;
+  }
+
+  corm_model_t *models[] = {&indexed_model};
+  assert(corm_auto_migrate(db, models, 1) == CORM_OK);
+
+  /* Verify index was created via sqlite_master */
+  corm_result_t *res = NULL;
+  err = corm_raw(db,
+                 "SELECT name FROM sqlite_master WHERE type='index' "
+                 "AND tbl_name='indexed_test' "
+                 "AND name='idx_indexed_test_email'",
+                 &res);
+  assert(err == CORM_OK);
+  assert(res != NULL);
+  assert(res->row_count == 1);
+  corm_result_release(res);
+
+  corm_close(db);
+  printf("test_index_creation PASSED\n");
+}
+
+/* ── Foreign key test ── */
+
+typedef struct {
+  int id;
+  char name[64];
+} DeptModel;
+
+static corm_field_t dept_fields[] = {
+    CORM_FIELD(DeptModel, id, CORM_INT, CORM_FLAG_PRIMARY, NULL),
+    CORM_FIELD(DeptModel, name, CORM_STRING, 0, NULL),
+};
+
+static corm_model_t dept_model = {
+    .table_name = "fk_dept",
+    .struct_size = sizeof(DeptModel),
+    .fields = dept_fields,
+    .field_count = 2,
+    .primary_key = &dept_fields[0],
+};
+
+typedef struct {
+  int id;
+  int dept_id;
+  char name[64];
+} EmpModel;
+
+static corm_field_t emp_fields[] = {
+    CORM_FIELD(EmpModel, id, CORM_INT, CORM_FLAG_PRIMARY, NULL),
+    CORM_FIELD(EmpModel, dept_id, CORM_INT, CORM_FLAG_NOT_NULL, NULL),
+    CORM_FIELD(EmpModel, name, CORM_STRING, 0, NULL),
+};
+
+static corm_model_t emp_model = {
+    .table_name = "fk_emp",
+    .struct_size = sizeof(EmpModel),
+    .fields = emp_fields,
+    .field_count = 3,
+    .primary_key = &emp_fields[0],
+};
+
+static void test_foreign_key(void) {
+  corm_t *db = NULL;
+  corm_err_t err = corm_open("sqlite3://:memory:", &db);
+  if (err != CORM_OK) {
+    printf("SKIP (no sqlite3 backend)\n");
+    return;
+  }
+
+  /* Enable FK enforcement */
+  corm_exec(db, "PRAGMA foreign_keys = ON");
+
+  /* Set up FK reference on dept_id field */
+  emp_fields[1].fk_ref = "fk_dept.id";
+
+  corm_model_t *models[] = {&dept_model, &emp_model};
+  assert(corm_auto_migrate(db, models, 2) == CORM_OK);
+
+  /* Insert a department */
+  assert(corm_exec(db, "INSERT INTO fk_dept (name) VALUES ('Engineering')") ==
+         CORM_OK);
+
+  /* Insert employee with valid FK reference */
+  assert(
+      corm_exec(db, "INSERT INTO fk_emp (dept_id, name) VALUES (1, 'Alice')") ==
+      CORM_OK);
+
+  /* Insert employee with invalid FK reference should fail */
+  err = corm_exec(db, "INSERT INTO fk_emp (dept_id, name) VALUES (999, 'Bob')");
+  assert(err != CORM_OK);
+
+  /* Clean up fk_ref for next run */
+  emp_fields[1].fk_ref = NULL;
+
+  corm_close(db);
+  printf("test_foreign_key PASSED\n");
+}
+
 int main(void) {
   test_incremental_migration();
   test_alter_table_with_reserved_word();
+  test_index_creation();
+  test_foreign_key();
   return 0;
 }

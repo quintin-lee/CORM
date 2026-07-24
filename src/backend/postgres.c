@@ -439,6 +439,7 @@ static corm_backend_t postgres_backend = {
     .escape_string = pg_escape,
     .last_insert_id = pg_last_id,
     .rows_affected = pg_affected,
+    .describe_table = NULL,
 };
 
 __attribute__((constructor)) static void pg_register(void) {

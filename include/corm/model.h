@@ -11,6 +11,9 @@
 #define CORM_FLAG_UNIQUE (1 << 3)   /**< Column has a UNIQUE constraint */
 #define CORM_FLAG_SOFT_DELETE                                                  \
   (1 << 4) /**< Delete sets a timestamp instead of removing row */
+#define CORM_FLAG_INDEX                                                        \
+  (1 << 5) /**< Create a database index on this column                         \
+            */
 
 /** Describes a single column/field in an ORM model. */
 typedef struct {
@@ -20,6 +23,7 @@ typedef struct {
   size_t size;               /**< Storage size in bytes */
   unsigned int flags;        /**< Bitwise OR of CORM_FLAG_* values */
   const char *default_value; /**< Default SQL expression or NULL */
+  const char *fk_ref; /**< FK target in \"table.column\" format, or NULL */
 } corm_field_t;
 
 struct corm;
