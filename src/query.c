@@ -116,7 +116,7 @@ corm_query_t *corm_query_or_where(corm_query_t *q, const char *condition, ...) {
 }
 
 corm_query_t *corm_query_where_null(corm_query_t *q, const char *field) {
-  if (!q || !field)
+  if (!q || !field || !corm_is_valid_identifier(field))
     return q;
   if (q->where.len > 0)
     corm_strbuf_append(&q->where, " AND ");
@@ -126,7 +126,7 @@ corm_query_t *corm_query_where_null(corm_query_t *q, const char *field) {
 }
 
 corm_query_t *corm_query_where_not_null(corm_query_t *q, const char *field) {
-  if (!q || !field)
+  if (!q || !field || !corm_is_valid_identifier(field))
     return q;
   if (q->where.len > 0)
     corm_strbuf_append(&q->where, " AND ");
@@ -137,7 +137,7 @@ corm_query_t *corm_query_where_not_null(corm_query_t *q, const char *field) {
 
 corm_query_t *corm_query_where_in(corm_query_t *q, const char *field,
                                   corm_value_t *vals, int count) {
-  if (!q || !field || !vals || count <= 0)
+  if (!q || !field || !vals || count <= 0 || !corm_is_valid_identifier(field))
     return q;
   if (q->where.len > 0)
     corm_strbuf_append(&q->where, " AND ");
@@ -160,7 +160,7 @@ corm_query_t *corm_query_where_in(corm_query_t *q, const char *field,
 corm_query_t *corm_query_where_between(corm_query_t *q, const char *field,
                                        corm_value_t min_val,
                                        corm_value_t max_val) {
-  if (!q || !field)
+  if (!q || !field || !corm_is_valid_identifier(field))
     return q;
   if (q->where.len > 0)
     corm_strbuf_append(&q->where, " AND ");
@@ -184,39 +184,53 @@ corm_query_t *corm_query_where_between(corm_query_t *q, const char *field,
 }
 
 corm_query_t *corm_query_join(corm_query_t *q, const char *join_clause) {
+  if (!q || !join_clause)
+    return q;
   corm_strbuf_append(&q->joins, join_clause);
   return q;
 }
 
 corm_query_t *corm_query_order(corm_query_t *q, const char *order) {
+  if (!q || !order)
+    return q;
   corm_strbuf_clear(&q->order);
   corm_strbuf_append(&q->order, order);
   return q;
 }
 
 corm_query_t *corm_query_group(corm_query_t *q, const char *group) {
+  if (!q || !group)
+    return q;
   corm_strbuf_clear(&q->group);
   corm_strbuf_append(&q->group, group);
   return q;
 }
 
 corm_query_t *corm_query_having(corm_query_t *q, const char *condition) {
+  if (!q || !condition)
+    return q;
   corm_strbuf_clear(&q->having);
   corm_strbuf_append(&q->having, condition);
   return q;
 }
 
 corm_query_t *corm_query_limit(corm_query_t *q, int limit) {
+  if (!q)
+    return q;
   q->limit = limit;
   return q;
 }
 
 corm_query_t *corm_query_offset(corm_query_t *q, int offset) {
+  if (!q)
+    return q;
   q->offset = offset;
   return q;
 }
 
 corm_query_t *corm_query_bind(corm_query_t *q, corm_value_t val) {
+  if (!q)
+    return q;
   if (q->param_count >= q->param_cap) {
     int new_cap = q->param_cap ? q->param_cap * 2 : 8;
     corm_value_t *tmp = (corm_value_t *)realloc(
@@ -233,16 +247,18 @@ corm_query_t *corm_query_bind(corm_query_t *q, corm_value_t val) {
 
 corm_query_t *corm_query_set(corm_query_t *q, const char *field,
                              corm_value_t val) {
+  if (!q || !field || !corm_is_valid_identifier(field))
+    return q;
   if (q->set_clause.len > 0)
     corm_strbuf_append(&q->set_clause, ", ");
-  const char *qchar = corm_dialect_quote(q->db->backend->type, field);
+  corm_backend_type_t bt = q->db ? q->db->backend->type : CORM_BACKEND_SQLITE;
+  const char *qchar = corm_dialect_quote(bt, field);
   corm_strbuf_append(&q->set_clause, qchar);
   corm_strbuf_append(&q->set_clause, field);
   corm_strbuf_append(&q->set_clause, qchar);
   corm_strbuf_append(&q->set_clause, " = ");
   char ph_buf[16];
-  corm_dialect_placeholder_str(q->db->backend->type, q->param_count, ph_buf,
-                               sizeof(ph_buf));
+  corm_dialect_placeholder_str(bt, q->param_count, ph_buf, sizeof(ph_buf));
   corm_strbuf_append(&q->set_clause, ph_buf);
   corm_query_bind(q, val);
   q->op = CORM_OP_UPDATE;

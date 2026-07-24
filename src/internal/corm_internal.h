@@ -50,4 +50,17 @@ static inline void corm_set_err_sql(corm_t *db, const char *sql) {
     memcpy(db->err_sql + sizeof(db->err_sql) - 4, "...", 4);
 }
 
+/** Check if a field or table identifier contains only valid characters
+ * ([a-zA-Z0-9_.*]). */
+static inline bool corm_is_valid_identifier(const char *name) {
+  if (!name || !*name)
+    return false;
+  for (const char *p = name; *p; p++) {
+    if (!((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') ||
+          (*p >= '0' && *p <= '9') || *p == '_' || *p == '.' || *p == '*'))
+      return false;
+  }
+  return true;
+}
+
 #endif
