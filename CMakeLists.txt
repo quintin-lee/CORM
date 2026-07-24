@@ -206,6 +206,10 @@ if(CORM_BUILD_TESTS)
         add_executable(test_logger tests/test_logger.c)
         target_link_libraries(test_logger corm ${CORM_EXTRA_LIBS})
         add_test(NAME test_logger COMMAND test_logger)
+
+        add_executable(test_corm_api tests/test_corm_api.c)
+        target_link_libraries(test_corm_api corm ${CORM_EXTRA_LIBS})
+        add_test(NAME test_corm_api COMMAND test_corm_api)
     endif()
 endif()
 
