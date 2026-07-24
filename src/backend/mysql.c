@@ -90,6 +90,11 @@ static corm_err_t mysql_open(corm_t *db, const char *dsn) {
   }
 
   db->conn = handle;
+
+  /* Set up statement cache destroy function */
+  corm_stmt_cache_set_destroy_fn(db->stmt_cache,
+                                 (void (*)(void *))mysql_stmt_close);
+
   return CORM_OK;
 }
 
@@ -171,16 +176,22 @@ static corm_err_t mysql_exec(corm_t *db, const char *sql, corm_value_t *params,
     return CORM_OK;
   }
 
-  MYSQL_STMT *stmt = mysql_stmt_init(handle);
+  /* Check statement cache */
+  MYSQL_STMT *stmt = (MYSQL_STMT *)corm_stmt_cache_get(db->stmt_cache, sql);
   if (!stmt) {
-    corm_set_err_msg(db, "mysql_stmt_init failed");
-    return CORM_ERR_NOMEM;
-  }
+    stmt = mysql_stmt_init(handle);
+    if (!stmt) {
+      corm_set_err_msg(db, "mysql_stmt_init failed");
+      return CORM_ERR_NOMEM;
+    }
 
-  if (mysql_stmt_prepare(stmt, sql, (unsigned long)strlen(sql)) != 0) {
-    corm_set_err_msg(db, "%s", mysql_stmt_error(stmt));
-    mysql_stmt_close(stmt);
-    return CORM_ERR_BACKEND;
+    if (mysql_stmt_prepare(stmt, sql, (unsigned long)strlen(sql)) != 0) {
+      corm_set_err_msg(db, "%s", mysql_stmt_error(stmt));
+      mysql_stmt_close(stmt);
+      return CORM_ERR_BACKEND;
+    }
+
+    corm_stmt_cache_put(db->stmt_cache, sql, stmt);
   }
 
   MYSQL_BIND *bind = mysql_bind_params(params, param_count);
@@ -207,7 +218,7 @@ static corm_err_t mysql_exec(corm_t *db, const char *sql, corm_value_t *params,
   db->rows_affected_val = (int)mysql_stmt_affected_rows(stmt);
 
   free(bind);
-  mysql_stmt_close(stmt);
+  /* Do NOT close cached stmt — reuse next time */
   return CORM_OK;
 }
 
@@ -308,16 +319,21 @@ static corm_err_t mysql_simple_query(MYSQL *handle, corm_result_t **out) {
 static corm_err_t mysql_stmt_query(corm_t *db, MYSQL *handle, const char *sql,
                                    corm_value_t *params, int param_count,
                                    corm_result_t **out) {
-  MYSQL_STMT *stmt = mysql_stmt_init(handle);
+  MYSQL_STMT *stmt = (MYSQL_STMT *)corm_stmt_cache_get(db->stmt_cache, sql);
   if (!stmt) {
-    corm_set_err_msg(db, "mysql_stmt_init failed");
-    return CORM_ERR_NOMEM;
-  }
+    stmt = mysql_stmt_init(handle);
+    if (!stmt) {
+      corm_set_err_msg(db, "mysql_stmt_init failed");
+      return CORM_ERR_NOMEM;
+    }
 
-  if (mysql_stmt_prepare(stmt, sql, (unsigned long)strlen(sql)) != 0) {
-    corm_set_err_msg(db, "%s", mysql_stmt_error(stmt));
-    mysql_stmt_close(stmt);
-    return CORM_ERR_BACKEND;
+    if (mysql_stmt_prepare(stmt, sql, (unsigned long)strlen(sql)) != 0) {
+      corm_set_err_msg(db, "%s", mysql_stmt_error(stmt));
+      mysql_stmt_close(stmt);
+      return CORM_ERR_BACKEND;
+    }
+
+    corm_stmt_cache_put(db->stmt_cache, sql, stmt);
   }
 
   if (param_count > 0) {
