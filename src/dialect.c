@@ -37,7 +37,7 @@ const char *corm_dialect_autoinc(corm_backend_type_t backend) {
   case CORM_BACKEND_SQLITE:
     return "INTEGER PRIMARY KEY AUTOINCREMENT";
   case CORM_BACKEND_MYSQL:
-    return "AUTO_INCREMENT";
+    return "INTEGER AUTO_INCREMENT";
   case CORM_BACKEND_POSTGRES:
     return "SERIAL PRIMARY KEY";
   }

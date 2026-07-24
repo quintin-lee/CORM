@@ -29,8 +29,17 @@ static corm_err_t create_table(corm_t *db, corm_backend_type_t backend,
 
     /* Column type */
     if (f->flags & CORM_FLAG_AUTOINC) {
-      corm_strbuf_appendf(&sql, " %s", corm_dialect_autoinc(backend));
-      continue; /* autoinc dialect already defines the full column */
+      if (backend == CORM_BACKEND_MYSQL) {
+        /* MySQL needs type before AUTO_INCREMENT, e.g. "INTEGER AUTO_INCREMENT"
+         */
+        char type_buf[64];
+        corm_dialect_type_name_str(backend, f->type, f->size, type_buf,
+                                   sizeof(type_buf));
+        corm_strbuf_appendf(&sql, " %s AUTO_INCREMENT", type_buf);
+      } else {
+        corm_strbuf_appendf(&sql, " %s", corm_dialect_autoinc(backend));
+        continue; /* autoinc dialect already defines the full column */
+      }
     } else {
       char type_buf[64];
       corm_dialect_type_name_str(backend, f->type, f->size, type_buf,
@@ -46,8 +55,8 @@ static corm_err_t create_table(corm_t *db, corm_backend_type_t backend,
     if (f->default_value && f->default_value[0])
       corm_strbuf_appendf(&sql, " DEFAULT %s", f->default_value);
 
-    /* Primary key constraint for non-autoinc fields */
-    if ((f->flags & CORM_FLAG_PRIMARY) && !(f->flags & CORM_FLAG_AUTOINC)) {
+    /* Primary key constraint */
+    if (f->flags & CORM_FLAG_PRIMARY) {
       corm_strbuf_append(&sql, " PRIMARY KEY");
     }
 
