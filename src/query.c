@@ -558,26 +558,96 @@ corm_err_t corm_create_batch(corm_t *db, corm_model_t *model, void *records,
   if (batch_size <= 0)
     batch_size = 100;
 
+  /* Count non-AUTOINC fields */
+  int val_count = 0;
+  for (int i = 0; i < model->field_count; i++) {
+    if (!(model->fields[i].flags & CORM_FLAG_AUTOINC))
+      val_count++;
+  }
+  if (val_count <= 0)
+    return CORM_ERR_MISMATCH;
+
+  uint8_t *bytes = (uint8_t *)records;
   int total_inserted = 0;
-  char *bytes = (char *)records;
 
   for (int i = 0; i < count; i += batch_size) {
     int current_batch = (i + batch_size > count) ? (count - i) : batch_size;
+    corm_backend_type_t bt = db->backend->type;
 
-    corm_begin(db);
-    for (int j = 0; j < current_batch; j++) {
-      void *rec = bytes + (i + j) * model->struct_size;
-      int64_t id = 0;
-      corm_err_t err = corm_create_one(db, model, rec, &id);
-      if (err != CORM_OK) {
-        corm_rollback(db);
-        if (inserted_count)
-          *inserted_count = total_inserted;
-        return err;
-      }
-      total_inserted++;
+    /* Build SQL: INSERT INTO t (c1,c2,...) VALUES (p,p,...),(p,p,...) */
+    corm_strbuf_t sql;
+    corm_strbuf_init(&sql);
+    {
+      const char *q = corm_dialect_quote(bt, model->table_name);
+      corm_strbuf_appendf(&sql, "INSERT INTO %s%s%s (", q, model->table_name,
+                          q);
     }
-    corm_commit(db);
+    int ci = 0;
+    for (int j = 0; j < model->field_count; j++) {
+      corm_field_t *f = &model->fields[j];
+      if (f->flags & CORM_FLAG_AUTOINC)
+        continue;
+      if (ci > 0)
+        corm_strbuf_append(&sql, ", ");
+      const char *q = corm_dialect_quote(bt, f->name);
+      corm_strbuf_append(&sql, q);
+      corm_strbuf_append(&sql, f->name);
+      corm_strbuf_append(&sql, q);
+      ci++;
+    }
+    corm_strbuf_append(&sql, ") VALUES ");
+
+    /* Build query for bind params (deep-copy behavior via corm_query_bind) */
+    corm_query_t *q = corm_query_new(db, model);
+    if (!q) {
+      corm_strbuf_free(&sql);
+      if (inserted_count)
+        *inserted_count = total_inserted;
+      return CORM_ERR_NOMEM;
+    }
+
+    int param_idx = 0;
+    for (int r = 0; r < current_batch; r++) {
+      if (r > 0)
+        corm_strbuf_append(&sql, ", (");
+      else
+        corm_strbuf_append(&sql, "(");
+      void *rec = bytes + (i + r) * model->struct_size;
+      int fi = 0;
+      for (int j = 0; j < model->field_count; j++) {
+        corm_field_t *f = &model->fields[j];
+        if (f->flags & CORM_FLAG_AUTOINC)
+          continue;
+        if (fi > 0)
+          corm_strbuf_append(&sql, ", ");
+        char ph_buf[16];
+        corm_dialect_placeholder_str(bt, param_idx++, ph_buf, sizeof(ph_buf));
+        corm_strbuf_append(&sql, ph_buf);
+        fi++;
+      }
+      corm_strbuf_append(&sql, ")");
+
+      /* Bind params for this row */
+      for (int j = 0; j < model->field_count; j++) {
+        corm_field_t *f = &model->fields[j];
+        if (f->flags & CORM_FLAG_AUTOINC)
+          continue;
+        corm_value_t val = corm_field_get_value(rec, f);
+        corm_query_bind(q, val);
+      }
+    }
+
+    corm_err_t err = db->backend->exec(db, corm_strbuf_cstr(&sql), q->params,
+                                       q->param_count);
+    corm_strbuf_free(&sql);
+    corm_query_free(q);
+
+    if (err != CORM_OK) {
+      if (inserted_count)
+        *inserted_count = total_inserted;
+      return err;
+    }
+    total_inserted += current_batch;
   }
 
   if (inserted_count)

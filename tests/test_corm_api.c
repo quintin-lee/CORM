@@ -402,6 +402,80 @@ static void test_count(void) {
   corm_close(db);
 }
 
+static void test_batch_create_multirow(void) {
+  corm_t *db = NULL;
+  corm_err_t err = corm_open("sqlite3://:memory:", &db);
+  if (err != CORM_OK) {
+    TEST("batch_create 100 records via multi-row INSERT");
+    printf("SKIP (no sqlite3 backend)\n");
+    PASS();
+    return;
+  }
+
+  corm_register_model(db, &person_model);
+  corm_model_t *models[] = {&person_model};
+  corm_auto_migrate(db, models, 1);
+
+#define BATCH_N 100
+  PersonRec recs[BATCH_N];
+  for (int i = 0; i < BATCH_N; i++) {
+    recs[i].name[0] = '\0';
+    snprintf(recs[i].name, sizeof(recs[i].name), "Person_%d", i);
+    recs[i].age = i % 50;
+  }
+
+  TEST("batch_create 100 records via multi-row INSERT");
+  int inserted = 0;
+  err = corm_create_batch(db, &person_model, recs, BATCH_N, 50, &inserted);
+  if (err != CORM_OK) {
+    FAIL("batch_create returned error");
+    corm_close(db);
+    return;
+  }
+  if (inserted != BATCH_N) {
+    FAIL("wrong inserted count");
+    corm_close(db);
+    return;
+  }
+  PASS();
+
+  TEST("batch_create multi-row count verify");
+  int cnt = -1;
+  corm_count(db, &person_model, NULL, &cnt);
+  if (cnt != BATCH_N) {
+    FAIL("row count mismatch");
+    corm_close(db);
+    return;
+  }
+  PASS();
+
+  TEST("batch_create multi-row spot-check first record");
+  PersonRec found;
+  memset(&found, 0, sizeof(found));
+  corm_find_one(db, &person_model, "id = 1", &found);
+  if (strcmp(found.name, "Person_0") != 0 || found.age != 0) {
+    FAIL("first record data wrong");
+    corm_close(db);
+    return;
+  }
+  PASS();
+
+  TEST("batch_create multi-row spot-check last record");
+  memset(&found, 0, sizeof(found));
+  char where[32];
+  snprintf(where, sizeof(where), "id = %d", BATCH_N);
+  corm_find_one(db, &person_model, where, &found);
+  if (strcmp(found.name, "Person_99") != 0 || found.age != 49) {
+    FAIL("last record data wrong");
+    corm_close(db);
+    return;
+  }
+  PASS();
+
+#undef BATCH_N
+  corm_close(db);
+}
+
 int main(void) {
   printf("CORM API Tests\n");
   printf("══════════════\n\n");
@@ -411,6 +485,7 @@ int main(void) {
   test_batch_no_pk_guard();
   test_find_one();
   test_count();
+  test_batch_create_multirow();
 
   printf("\nResults: %d passed, %d failed\n", tests_passed, tests_failed);
   return tests_failed > 0 ? 1 : 0;
