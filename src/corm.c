@@ -141,6 +141,33 @@ corm_err_t corm_rollback(corm_t *db) {
   return db->backend->rollback(db);
 }
 
+static const char *isolation_level_sql(corm_isolation_level_t level) {
+  switch (level) {
+  case CORM_ISOLATION_READ_UNCOMMITTED:
+    return "READ UNCOMMITTED";
+  case CORM_ISOLATION_READ_COMMITTED:
+    return "READ COMMITTED";
+  case CORM_ISOLATION_REPEATABLE_READ:
+    return "REPEATABLE READ";
+  case CORM_ISOLATION_SERIALIZABLE:
+    return "SERIALIZABLE";
+  }
+  return NULL;
+}
+
+corm_err_t corm_set_isolation(corm_t *db, corm_isolation_level_t level) {
+  if (!db || !db->backend)
+    return CORM_ERR_NULL;
+  const char *sql = isolation_level_sql(level);
+  if (!sql) {
+    corm_set_err_msg(db, "Invalid isolation level: %d", level);
+    return CORM_ERR_NULL;
+  }
+  char buf[256];
+  snprintf(buf, sizeof(buf), "SET TRANSACTION ISOLATION LEVEL %s", sql);
+  return corm_exec(db, buf);
+}
+
 static int is_valid_savepoint_name(const char *name) {
   if (!name || !*name)
     return 0;
@@ -205,6 +232,33 @@ corm_err_t corm_exec(corm_t *db, const char *sql) {
   clock_gettime(CLOCK_MONOTONIC, &start);
 
   corm_err_t err = db->backend->exec(db, sql, NULL, 0);
+
+  clock_gettime(CLOCK_MONOTONIC, &end);
+  uint64_t elapsed_us = (uint64_t)(end.tv_sec - start.tv_sec) * 1000000 +
+                        (uint64_t)(end.tv_nsec - start.tv_nsec) / 1000;
+
+  db->last_err = err;
+  if (err) {
+    corm_set_err_sql(db, sql);
+  }
+
+  if (db->logger) {
+    corm_log_level_t lvl = err ? CORM_LOG_ERROR : CORM_LOG_INFO;
+    db->logger(lvl, sql, elapsed_us, db->logger_user_data);
+  }
+
+  return err;
+}
+
+corm_err_t corm_exec_params(corm_t *db, const char *sql, corm_value_t *params,
+                            int param_count) {
+  if (!db || !db->backend)
+    return CORM_ERR_NULL;
+
+  struct timespec start, end;
+  clock_gettime(CLOCK_MONOTONIC, &start);
+
+  corm_err_t err = db->backend->exec(db, sql, params, param_count);
 
   clock_gettime(CLOCK_MONOTONIC, &end);
   uint64_t elapsed_us = (uint64_t)(end.tv_sec - start.tv_sec) * 1000000 +

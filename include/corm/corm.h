@@ -41,6 +41,11 @@ extern corm_err_t corm_commit(corm_t *db);
 /** ROLLBACK the current transaction. */
 extern corm_err_t corm_rollback(corm_t *db);
 
+/** Set transaction isolation level before BEGIN.
+ *  Emits "SET TRANSACTION ISOLATION LEVEL ..." then returns CORM_OK.
+ *  Only takes effect on the next transaction. */
+extern corm_err_t corm_set_isolation(corm_t *db, corm_isolation_level_t level);
+
 /** Create a named savepoint. Name must be alphanumeric (underscore/hyphen
  * allowed only). */
 extern corm_err_t corm_savepoint(corm_t *db, const char *name);
@@ -53,6 +58,11 @@ extern corm_err_t corm_release_savepoint(corm_t *db, const char *name);
 
 /** Execute a raw SQL string (no binding). */
 extern corm_err_t corm_exec(corm_t *db, const char *sql);
+
+/** Execute a raw SQL query with typed parameters.
+ *  Placeholders are dialect-aware (? for SQLite/MySQL, $N for PostgreSQL). */
+extern corm_err_t corm_exec_params(corm_t *db, const char *sql,
+                                   corm_value_t *params, int param_count);
 
 /** Execute a raw SQL query and return a result set. */
 extern corm_err_t corm_raw(corm_t *db, const char *sql, corm_result_t **out);

@@ -46,6 +46,15 @@ typedef enum {
   CORM_BOOL    /**< Boolean (stored as bool) */
 } corm_field_type_t;
 
+/** Transaction isolation levels for corm_set_isolation(). */
+typedef enum {
+  CORM_ISOLATION_READ_UNCOMMITTED =
+      0,                          /**< Lowest isolation (dirty reads allowed) */
+  CORM_ISOLATION_READ_COMMITTED,  /**< Default for PostgreSQL */
+  CORM_ISOLATION_REPEATABLE_READ, /**< Default for MySQL/SQLite */
+  CORM_ISOLATION_SERIALIZABLE     /**< Highest isolation */
+} corm_isolation_level_t;
+
 /** Runtime value used to pass data between the library and user code.
  *  The active member is determined by `type`. For CORM_STRING, `v.s` points
  *  into the struct buffer (borrowed). For CORM_TEXT, `v.s` is a char pointer
