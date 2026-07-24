@@ -22,7 +22,35 @@ void corm_model_registry_free(corm_registry_t *reg) {
   corm_hash_free(&reg->models_by_name);
 }
 
+corm_err_t corm_validate_model(const corm_model_t *model) {
+  if (!model || !model->table_name || model->field_count <= 0 || !model->fields)
+    return CORM_ERR_NULL;
+  if (!corm_is_valid_identifier(model->table_name))
+    return CORM_ERR_TYPE;
+  if (model->struct_size == 0)
+    return CORM_ERR_BOUNDS;
+
+  for (int i = 0; i < model->field_count; i++) {
+    const corm_field_t *f1 = &model->fields[i];
+    if (!f1->name || !corm_is_valid_identifier(f1->name))
+      return CORM_ERR_TYPE;
+
+    /* Check for duplicate field names */
+    for (int j = i + 1; j < model->field_count; j++) {
+      const corm_field_t *f2 = &model->fields[j];
+      if (f2->name && strcmp(f1->name, f2->name) == 0)
+        return CORM_ERR_DUP;
+    }
+  }
+  return CORM_OK;
+}
+
 corm_err_t corm_register_model(corm_t *db, corm_model_t *model) {
+  if (!db || !model)
+    return CORM_ERR_NULL;
+  corm_err_t err = corm_validate_model(model);
+  if (err != CORM_OK)
+    return err;
   return corm_hash_insert(&db->registry.models_by_table, model->table_name,
                           model);
 }

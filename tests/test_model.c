@@ -151,6 +151,32 @@ static void test_model_associations(void) {
   PASS();
 }
 
+static void test_validate_model(void) {
+  TEST("corm_validate_model detects invalid schema and duplicates");
+  corm_field_t dup_fields[] = {
+      CORM_FIELD(test_user_t, id, CORM_INT, CORM_FLAG_PRIMARY, NULL),
+      CORM_FIELD(test_user_t, id, CORM_INT, 0, NULL),
+  };
+  corm_model_t dup_model = {
+      .table_name = "dup_table",
+      .struct_size = sizeof(test_user_t),
+      .fields = dup_fields,
+      .field_count = 2,
+  };
+  assert(corm_validate_model(&dup_model) == CORM_ERR_DUP);
+
+  corm_model_t invalid_name_model = {
+      .table_name = "invalid;table--",
+      .struct_size = sizeof(test_user_t),
+      .fields = dup_fields,
+      .field_count = 1,
+  };
+  assert(corm_validate_model(&invalid_name_model) == CORM_ERR_TYPE);
+
+  assert(corm_validate_model(&test_user_model) == CORM_OK);
+  PASS();
+}
+
 int main(void) {
   printf("CORM Model Tests\n");
   printf("════════════════\n\n");
@@ -160,6 +186,7 @@ int main(void) {
   test_field_flags();
   test_field_get_set();
   test_model_associations();
+  test_validate_model();
 
   printf("\nResults: %d passed, %d failed\n", tests_passed, tests_failed);
   return tests_failed > 0 ? 1 : 0;

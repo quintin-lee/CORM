@@ -44,6 +44,10 @@ struct corm_model {
 };
 typedef struct corm_model corm_model_t;
 
+/** Validate model schema definition (checks non-null names, struct size, valid
+ * field identifiers, and duplicate field names). */
+extern corm_err_t corm_validate_model(const corm_model_t *model);
+
 /** Relation type for future relation-preloading support. */
 typedef enum {
   CORM_REL_HAS_ONE,   /**< One-to-one relationship */
