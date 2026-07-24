@@ -136,7 +136,7 @@ corm_err_t corm_build_sql(corm_query_t *q, corm_strbuf_t *sql,
       }
       corm_strbuf_append(sql, " WHERE ");
       append_with_placeholders(sql, bt, corm_strbuf_cstr(&q->where),
-                                where_offset);
+                               where_offset);
     }
     return CORM_OK;
   }

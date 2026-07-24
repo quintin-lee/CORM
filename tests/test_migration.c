@@ -83,8 +83,9 @@ void test_alter_table_with_reserved_word(void) {
     return;
   }
 
-  /* Create table with just the PK, then auto_migrate attempts ADD COLUMN "group".
-   * Without identifier quoting, 'group' is a reserved word and SQLite rejects it. */
+  /* Create table with just the PK, then auto_migrate attempts ADD COLUMN
+   * "group". Without identifier quoting, 'group' is a reserved word and SQLite
+   * rejects it. */
   corm_exec(db, "CREATE TABLE IF NOT EXISTS reserved_test ("
                 "id INTEGER PRIMARY KEY AUTOINCREMENT)");
 

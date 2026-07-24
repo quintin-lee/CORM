@@ -91,29 +91,6 @@ if(CORM_WITH_POSTGRES)
     endif()
 endif()
 
-# ── Sources ──
-set(CORM_SOURCES
-    src/corm.c
-    src/model.c
-    src/query.c
-    src/result.c
-    src/migration.c
-    src/builder.c
-    src/dialect.c
-    src/backend/backend.c
-    src/backend/sqlite3.c
-    src/backend/mysql.c
-    src/backend/postgres.c
-    src/internal/stmt_cache.c
-    src/internal/pool.c
-)
-
-# ── Library ──
-add_library(corm STATIC ${CORM_SOURCES})
-if(CORM_EXTRA_LIBS)
-    target_link_libraries(corm PUBLIC ${CORM_EXTRA_LIBS})
-endif()
-
 # ── Formatting ──
 find_program(CLANG_FORMAT clang-format)
 if(CLANG_FORMAT)
@@ -136,7 +113,36 @@ if(CLANG_FORMAT)
         COMMENT "Checking source file formatting with clang-format"
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     )
-else()
+endif()
+
+# ── Sources ──
+set(CORM_SOURCES
+    src/corm.c
+    src/model.c
+    src/query.c
+    src/result.c
+    src/migration.c
+    src/builder.c
+    src/dialect.c
+    src/backend/backend.c
+    src/backend/sqlite3.c
+    src/backend/mysql.c
+    src/backend/postgres.c
+    src/internal/stmt_cache.c
+    src/internal/pool.c
+)
+
+# ── Library ──
+add_library(corm STATIC ${CORM_SOURCES})
+if(CORM_EXTRA_LIBS)
+    target_link_libraries(corm PUBLIC ${CORM_EXTRA_LIBS})
+endif()
+if(CLANG_FORMAT)
+    add_dependencies(corm format)
+endif()
+
+# ── Format else (clang-format not found) ──
+if(NOT CLANG_FORMAT)
     add_custom_target(format
         COMMAND ${CMAKE_COMMAND} -E echo "clang-format not found -- skipping"
     )

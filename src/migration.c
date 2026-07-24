@@ -83,8 +83,8 @@ corm_err_t corm_auto_migrate(corm_t *db, corm_model_t *models[],
 
       const char *lq = corm_dialect_quote(backend, m->table_name);
       snprintf(alter_sql, sizeof(alter_sql),
-               "ALTER TABLE %s%s%s ADD COLUMN %s%s%s %s;",
-               lq, m->table_name, lq, lq, f->name, lq, type_buf);
+               "ALTER TABLE %s%s%s ADD COLUMN %s%s%s %s;", lq, m->table_name,
+               lq, lq, f->name, lq, type_buf);
       /* corm_exec will ignore error if column already exists */
       corm_exec(db, alter_sql);
     }

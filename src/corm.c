@@ -148,8 +148,8 @@ corm_err_t corm_savepoint(corm_t *db, const char *name) {
   if (!db || !name)
     return CORM_ERR_NULL;
   if (!is_valid_savepoint_name(name)) {
-    snprintf(db->err_msg, sizeof(db->err_msg),
-             "Invalid savepoint name: '%s'", name);
+    snprintf(db->err_msg, sizeof(db->err_msg), "Invalid savepoint name: '%s'",
+             name);
     return CORM_ERR_NULL;
   }
   char sql[256];
@@ -161,8 +161,8 @@ corm_err_t corm_rollback_to(corm_t *db, const char *name) {
   if (!db || !name)
     return CORM_ERR_NULL;
   if (!is_valid_savepoint_name(name)) {
-    snprintf(db->err_msg, sizeof(db->err_msg),
-             "Invalid savepoint name: '%s'", name);
+    snprintf(db->err_msg, sizeof(db->err_msg), "Invalid savepoint name: '%s'",
+             name);
     return CORM_ERR_NULL;
   }
   char sql[256];
@@ -174,8 +174,8 @@ corm_err_t corm_release_savepoint(corm_t *db, const char *name) {
   if (!db || !name)
     return CORM_ERR_NULL;
   if (!is_valid_savepoint_name(name)) {
-    snprintf(db->err_msg, sizeof(db->err_msg),
-             "Invalid savepoint name: '%s'", name);
+    snprintf(db->err_msg, sizeof(db->err_msg), "Invalid savepoint name: '%s'",
+             name);
     return CORM_ERR_NULL;
   }
   char sql[256];

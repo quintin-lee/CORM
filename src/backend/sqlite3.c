@@ -54,8 +54,7 @@ static void sqlite_bind_params(sqlite3_stmt *stmt, corm_value_t *params,
 
 static sqlite3_stmt *sqlite_get_stmt(corm_t *db, sqlite3 *handle,
                                      const char *sql) {
-  sqlite3_stmt *stmt =
-      (sqlite3_stmt *)corm_stmt_cache_get(db->stmt_cache, sql);
+  sqlite3_stmt *stmt = (sqlite3_stmt *)corm_stmt_cache_get(db->stmt_cache, sql);
   if (stmt) {
     sqlite3_reset(stmt);
     sqlite3_clear_bindings(stmt);

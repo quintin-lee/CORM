@@ -538,7 +538,7 @@ corm_err_t corm_create_batch(corm_t *db, corm_model_t *model, void *records,
 }
 
 corm_err_t corm_update_batch(corm_t *db, corm_model_t *model, void *records,
-                              int count, int *affected_count) {
+                             int count, int *affected_count) {
   if (!db || !model || !records || count <= 0)
     return CORM_ERR_NULL;
 
@@ -601,7 +601,7 @@ corm_err_t corm_update_batch(corm_t *db, corm_model_t *model, void *records,
 }
 
 corm_err_t corm_delete_batch(corm_t *db, corm_model_t *model, void *records,
-                              int count, int *affected_count) {
+                             int count, int *affected_count) {
   if (!db || !model || !records || count <= 0)
     return CORM_ERR_NULL;
 
@@ -631,8 +631,8 @@ corm_err_t corm_delete_batch(corm_t *db, corm_model_t *model, void *records,
     if (has_soft_delete) {
       for (int j = 0; j < model->field_count; j++) {
         if (model->fields[j].flags & CORM_FLAG_SOFT_DELETE) {
-          corm_value_t ts = {.type = CORM_STRING, .is_null = false,
-                             .v.s = "deleted"};
+          corm_value_t ts = {
+              .type = CORM_STRING, .is_null = false, .v.s = "deleted"};
           corm_query_set(q, model->fields[j].name, ts);
           break;
         }
